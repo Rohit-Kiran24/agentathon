@@ -1,0 +1,7 @@
+date,order_id,sku_id,product_name,quantity,price,channel
+2025-12-10,ORD001,SKU_A,Cotton T-Shirt,2,500,WhatsApp
+2025-12-11,ORD002,SKU_B,Denim Jeans,1,1200,Shopify
+2025-12-12,ORD003,SKU_A,Cotton T-Shirt,3,500,POS
+2025-12-13,ORD004,SKU_C,Sneakers,1,2500,WhatsApp
+2025-12-14,ORD005,SKU_A,Cotton T-Shirt,5,500,Shopify
+2025-12-15,ORD006,SKU_B,Denim Jeans,1,1200,POS
