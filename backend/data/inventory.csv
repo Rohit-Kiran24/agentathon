@@ -1,0 +1,6 @@
+item_id,item_name,current_stock,reorder_level,supplier_lead_time_days
+101,Smart Watch X1,5,20,7
+102,Noise Cancelling Headphones,45,15,3
+103,Ergonomic Laptop Stand,8,10,14
+104,Wireless Mouse,120,30,2
+105,USB-C Hub,2,15,5
