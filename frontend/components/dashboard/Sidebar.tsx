@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Database, Settings, History, Bell, FileText } from 'lucide-react';
+import { Home, Database, Settings, History, Bell, FileText, BarChart2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function Sidebar() {
@@ -39,6 +39,7 @@ export default function Sidebar() {
             <nav className="flex flex-col gap-8 flex-1 w-full px-4">
                 <NavItem icon={<Home size={24} />} href="/" active={pathname === "/"} />
                 <NavItem icon={<Database size={24} />} href="/upload" active={pathname === "/upload"} />
+                <NavItem icon={<BarChart2 size={24} />} href="/analytics" active={pathname === "/analytics"} />
                 <NavItem icon={<History size={24} />} href="#" />
 
                 {/* Active Files Indicator (Mini) */}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Sidebar from '@/components/dashboard/Sidebar';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend } from 'recharts';
 import { ArrowUpRight, AlertTriangle, DollarSign, Package, Activity, Trophy, HeartPulse, Truck, Zap, TrendingUp, AlertOctagon } from 'lucide-react';
 
@@ -27,19 +28,33 @@ export default function AnalyticsPage() {
         }
     };
 
+    // Common Wrapper to ensure Sidebar is always present
+    const PageLayout = ({ children }: { children: React.ReactNode }) => (
+        <main className="flex min-h-screen bg-black text-zinc-100 selection:bg-cyan-500/30 font-sans">
+            <Sidebar />
+            <section className="flex-1 pl-24 pr-8 py-8 h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+                {children}
+            </section>
+        </main>
+    );
+
     if (loading) return (
-        <div className="min-h-screen bg-black flex items-center justify-center text-cyan-500 font-mono animate-pulse">
-            INITIALIZING NEURAL LINK...
-        </div>
+        <PageLayout>
+            <div className="h-full flex flex-col items-center justify-center text-cyan-500 font-mono animate-pulse">
+                INITIALIZING NEURAL LINK...
+            </div>
+        </PageLayout>
     );
 
     if (!data || data.error || !data.kpis) {
         return (
-            <div className="min-h-screen bg-black text-white p-10 flex flex-col items-center justify-center">
-                <AlertOctagon className="w-16 h-16 text-red-500 mb-4 animate-pulse" />
-                <h2 className="text-xl font-bold font-mono">SYSTEM OFFLINE</h2>
-                <p className="text-zinc-500">{data?.error || "Connection lost to mainframe."}</p>
-            </div>
+            <PageLayout>
+                <div className="h-full flex flex-col items-center justify-center p-10">
+                    <AlertOctagon className="w-16 h-16 text-red-500 mb-4 animate-pulse" />
+                    <h2 className="text-xl font-bold font-mono">SYSTEM OFFLINE</h2>
+                    <p className="text-zinc-500 mt-2">{data?.error || "Connection lost to mainframe."}</p>
+                </div>
+            </PageLayout>
         );
     }
 
@@ -51,7 +66,7 @@ export default function AnalyticsPage() {
     };
 
     return (
-        <div className="min-h-screen bg-black text-zinc-100 p-6 font-sans selection:bg-cyan-500/30" style={{ scrollbarColor: '#3f3f46 #18181b', scrollbarWidth: 'thin' }}>
+        <PageLayout>
             {/* HEADER */}
             <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-6">
                 <div>
@@ -83,7 +98,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* BENTO GRID LAYOUT */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pb-12">
 
                 {/* --- LEFT COL (ACTION SIDEBAR) --- */}
                 <div className="md:col-span-3 space-y-6 flex flex-col h-full">
@@ -403,7 +418,7 @@ export default function AnalyticsPage() {
 
                 </div>
             </div>
-        </div>
+        </PageLayout>
     );
 }
 
