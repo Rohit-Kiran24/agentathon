@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import { Send, Mic, Paperclip, Bot, User } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function ChatInterface() {
     const [input, setInput] = useState('');
@@ -92,7 +94,27 @@ export default function ChatInterface() {
                                         Processing Request...
                                     </span>
                                 ) : (
-                                    <p className="leading-relaxed">{msg.text}</p>
+                                    <div className="markdown-content text-sm md:text-base">
+                                        {msg.sender === 'agent' ? (
+                                            <ReactMarkdown
+                                                remarkPlugins={[remarkGfm]}
+                                                components={{
+                                                    ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 space-y-2" {...props} />,
+                                                    ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-4 space-y-2" {...props} />,
+                                                    li: ({ node, ...props }) => <li className="pl-1 leading-relaxed" {...props} />,
+                                                    p: ({ node, ...props }) => <p className="mb-4 last:mb-0 leading-relaxed" {...props} />,
+                                                    strong: ({ node, ...props }) => <span className="font-bold text-white" {...props} />,
+                                                    h3: ({ node, ...props }) => <h3 className="text-lg font-semibold text-white mt-6 mb-3 first:mt-0" {...props} />,
+                                                    hr: ({ node, ...props }) => <hr className="border-white/10 my-6" {...props} />,
+                                                    code: ({ node, ...props }) => <code className="bg-black/30 px-1 py-0.5 rounded text-xs font-mono text-zinc-300" {...props} />
+                                                }}
+                                            >
+                                                {msg.text}
+                                            </ReactMarkdown>
+                                        ) : (
+                                            <p className="leading-relaxed">{msg.text}</p>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </div>
