@@ -35,7 +35,7 @@ export default function ChatInterface() {
         {
             id: 1,
             sender: 'agent',
-            text: 'System initialized. Connected to Python Backend. Ready for commands.',
+            text: "Hello! I'm your BizNexus Business Consultant. I'm here to help you analyze your data, provide strategic insights, and answer your questions.\n\nHow can I assist you today? You can ask me to forecast trends for next month, analyze specific products, or give a general overview.",
             isThinking: false,
             chartData: null
         }
