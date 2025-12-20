@@ -1,7 +1,31 @@
+"use client";
+
 import React from 'react';
-import { Home, LineChart, Settings, History, Bell } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { Home, Database, Settings, History, Bell, FileText } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 export default function Sidebar() {
+    const pathname = usePathname();
+    const [activeFiles, setActiveFiles] = useState<string[]>([]);
+
+    // Fetch context periodically or on mount
+    useEffect(() => {
+        const fetchContext = async () => {
+            try {
+                const res = await fetch('http://localhost:8000/api/context');
+                const data = await res.json();
+                if (data.files) setActiveFiles(data.files);
+            } catch (e) { console.error("Failed to fetch context", e); }
+        };
+
+        fetchContext();
+        // Poll every 5 seconds to keep updated
+        const interval = setInterval(fetchContext, 5000);
+        return () => clearInterval(interval);
+    }, []);
+
     return (
         <aside className="fixed left-0 top-0 h-full w-20 flex flex-col items-center py-8 border-r border-white/10 bg-black/50 backdrop-blur-xl z-50">
             {/* Logo Icon */}
@@ -13,9 +37,34 @@ export default function Sidebar() {
 
             {/* Nav Items */}
             <nav className="flex flex-col gap-8 flex-1 w-full px-4">
-                <NavItem icon={<Home size={24} />} active />
-                <NavItem icon={<LineChart size={24} />} />
-                <NavItem icon={<History size={24} />} />
+                <NavItem icon={<Home size={24} />} href="/" active={pathname === "/"} />
+                <NavItem icon={<Database size={24} />} href="/upload" active={pathname === "/upload"} />
+                <NavItem icon={<History size={24} />} href="#" />
+
+                {/* Active Files Indicator (Mini) */}
+                {activeFiles.length > 0 && (
+                    <div className="mt-4 flex flex-col items-center gap-2">
+                        <div className="w-full h-px bg-white/10"></div>
+                        <div className="relative group cursor-help">
+                            <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                <FileText size={20} />
+                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center">
+                                    {activeFiles.length}
+                                </span>
+                            </div>
+
+                            {/* Tooltip listing files */}
+                            <div className="absolute left-14 top-0 bg-zinc-900 border border-white/10 p-3 rounded-xl w-48 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                <p className="text-xs font-semibold text-white mb-2">Active Data Source:</p>
+                                <ul className="text-xs text-zinc-400 space-y-1">
+                                    {activeFiles.map((f, i) => (
+                                        <li key={i} className="truncate">• {f}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </nav>
 
             {/* Bottom Actions */}
@@ -31,15 +80,17 @@ export default function Sidebar() {
     );
 }
 
-function NavItem({ icon, active = false }: { icon: React.ReactNode; active?: boolean }) {
+function NavItem({ icon, href, active = false }: { icon: React.ReactNode; href: string; active?: boolean }) {
     return (
-        <button
-            className={`p-3 rounded-2xl transition-all duration-300 ${active
-                ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]"
-                : "text-zinc-500 hover:text-white hover:bg-white/10"
-                }`}
-        >
-            {icon}
-        </button>
+        <Link href={href}>
+            <div
+                className={`p-3 rounded-2xl transition-all duration-300 flex items-center justify-center ${active
+                    ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+                    : "text-zinc-500 hover:text-white hover:bg-white/10"
+                    }`}
+            >
+                {icon}
+            </div>
+        </Link>
     );
 }

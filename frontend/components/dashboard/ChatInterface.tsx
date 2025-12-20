@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Send, Mic, Paperclip, Bot, User, Rocket, CheckCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Send, Mic, Bot, User, Rocket, CheckCircle, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -19,11 +19,14 @@ interface Message {
     isThinking: boolean;
     chartData?: any;
     actions?: Action[];
+    suggestions?: string[];
 }
 
 export default function ChatInterface() {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+
+
 
     // Toast State
     const [toast, setToast] = useState<{ show: boolean, msg: string }>({ show: false, msg: '' });
@@ -38,29 +41,27 @@ export default function ChatInterface() {
         }
     ]);
 
-    // Helper: Parse message for charts AND actions
+    // Helper: Parse message for charts, actions, AND suggestions
     const parseMessage = (text: string) => {
         let cleanText = text;
         let chartData = null;
         let actions = null;
+        let suggestions = null;
 
-        // 1. Chart Regex (Matches ```json chart ... ```)
-        const chartRegex = /```json(?: chart)?\s*([\s\S]*?)\s*```/;
-        const chartMatch = cleanText.match(chartRegex);
-        if (chartMatch) {
+        // 1. Suggestions Regex (Specific: ```json suggestions ... ```)
+        const suggestionRegex = /```json suggestions\s*([\s\S]*?)\s*```/;
+        const suggestionMatch = cleanText.match(suggestionRegex);
+        if (suggestionMatch) {
             try {
-                const parsed = JSON.parse(chartMatch[1]);
-                // Heuristic: Charts usually have 'type' and 'data'
-                if (parsed.type && parsed.data) {
-                    chartData = parsed;
-                    cleanText = cleanText.replace(chartRegex, '').trim();
+                const parsed = JSON.parse(suggestionMatch[1]);
+                if (Array.isArray(parsed)) {
+                    suggestions = parsed;
+                    cleanText = cleanText.replace(suggestionRegex, '').trim();
                 }
-            } catch (e) {
-                console.error("Failed to parse chart JSON", e);
-            }
+            } catch (e) { console.error("Failed to parse suggestions", e); }
         }
 
-        // 2. Actions Regex (Matches ```json actions ... ```)
+        // 2. Actions Regex (Specific: ```json actions ... ```)
         const actionRegex = /```json actions\s*([\s\S]*?)\s*```/;
         const actionMatch = cleanText.match(actionRegex);
         if (actionMatch) {
@@ -70,22 +71,33 @@ export default function ChatInterface() {
                     actions = parsed;
                     cleanText = cleanText.replace(actionRegex, '').trim();
                 }
-            } catch (e) {
-                console.error("Failed to parse actions JSON", e);
-            }
+            } catch (e) { console.error("Failed to parse actions", e); }
         }
 
-        return { cleanText, chartData, actions };
+        // 3. Chart Regex (Generic: ```json ... ``` or ```json chart ... ```)
+        const chartRegex = /```json(?: chart)?\s*([\s\S]*?)\s*```/;
+        const chartMatch = cleanText.match(chartRegex);
+        if (chartMatch) {
+            try {
+                const parsed = JSON.parse(chartMatch[1]);
+                if (parsed.type && parsed.data) {
+                    chartData = parsed;
+                    cleanText = cleanText.replace(chartRegex, '').trim();
+                }
+            } catch (e) { console.error("Failed to parse chart", e); }
+        }
+
+        return { cleanText, chartData, actions, suggestions };
     };
 
-    const handleSend = async () => {
-        if (!input.trim()) return;
+    const handleSend = async (overrideText?: string) => {
+        const textToSend = overrideText || input;
+        if (!textToSend.trim()) return;
 
-        const userMsg: Message = { id: Date.now(), sender: 'user', text: input, isThinking: false };
+        const userMsg: Message = { id: Date.now(), sender: 'user', text: textToSend, isThinking: false };
         setMessages(prev => [...prev, userMsg]);
 
-        const query = input;
-        setInput('');
+        if (!overrideText) setInput('');
         setLoading(true);
 
         try {
@@ -99,13 +111,13 @@ export default function ChatInterface() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    query: query,
+                    query: textToSend,
                     history: historyPayload
                 }),
             });
 
             const data = await res.json();
-            const { cleanText, chartData, actions } = parseMessage(data.response);
+            const { cleanText, chartData, actions, suggestions } = parseMessage(data.response);
 
             setMessages(prev => {
                 const newHistory = prev.filter(msg => !msg.isThinking);
@@ -115,6 +127,7 @@ export default function ChatInterface() {
                     text: cleanText,
                     chartData: chartData,
                     actions: actions,
+                    suggestions: suggestions,
                     isThinking: false
                 }];
             });
@@ -128,21 +141,20 @@ export default function ChatInterface() {
         }
     };
 
+
+
     const handleActionClick = (actions: Action[]) => {
-        // Mock Execution
         const actionNames = actions.map(a => a.label).join(", ");
         setToast({ show: true, msg: `Executing: ${actionNames}...` });
-
-        // Hide toast after 3s
-        setTimeout(() => {
-            setToast({ show: false, msg: '' });
-        }, 3000);
+        setTimeout(() => setToast({ show: false, msg: '' }), 3000);
     };
 
     return (
         <div className="flex flex-col h-full w-full max-w-4xl mx-auto relative">
 
-            {/* TOAST NOTIFICATION */}
+
+
+            {/* TOAST */}
             {toast.show && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
                     <div className="bg-emerald-500 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 font-medium">
@@ -204,7 +216,7 @@ export default function ChatInterface() {
                                             <p className="leading-relaxed">{msg.text}</p>
                                         )}
 
-                                        {/* ACTION BUTTON */}
+                                        {/* ACTIONS */}
                                         {msg.actions && msg.actions.length > 0 && (
                                             <div className="mt-6 pt-4 border-t border-white/10">
                                                 <button
@@ -217,6 +229,25 @@ export default function ChatInterface() {
                                                 <p className="text-center text-xs text-zinc-500 mt-2">
                                                     Automatically executes: {msg.actions.map(a => a.label).join(", ")}
                                                 </p>
+                                            </div>
+                                        )}
+
+                                        {/* SUGGESTIONS */}
+                                        {msg.suggestions && msg.suggestions.length > 0 && (
+                                            <div className="mt-6 pt-4 border-t border-white/10 flex flex-wrap gap-2">
+                                                <div className="w-full flex items-center gap-2 text-xs font-medium text-zinc-500 mb-1">
+                                                    <Sparkles size={14} className="text-purple-400" />
+                                                    SUGGESTED NEXT STEPS
+                                                </div>
+                                                {msg.suggestions.map((sug, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        onClick={() => handleSend(sug)}
+                                                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm rounded-full transition-colors border border-white/5 hover:border-white/20 text-left"
+                                                    >
+                                                        {sug}
+                                                    </button>
+                                                ))}
                                             </div>
                                         )}
                                     </div>
@@ -233,9 +264,7 @@ export default function ChatInterface() {
                     <div className="absolute -inset-0.5 bg-gradient-to-r from-white/20 to-zinc-500/20 rounded-full opacity-50 group-hover:opacity-100 transition duration-500 blur"></div>
 
                     <div className="relative flex items-center bg-black rounded-full border border-white/10 px-4 py-3 shadow-2xl">
-                        <button className="p-2 text-zinc-500 hover:text-white transition-colors">
-                            <Paperclip size={20} />
-                        </button>
+
 
                         <input
                             type="text"
@@ -252,7 +281,7 @@ export default function ChatInterface() {
                                 <Mic size={20} />
                             </button>
                             <button
-                                onClick={handleSend}
+                                onClick={() => handleSend()}
                                 disabled={loading}
                                 className="p-2 bg-white text-black rounded-full hover:bg-zinc-200 transition-colors disabled:opacity-50"
                             >

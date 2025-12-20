@@ -12,20 +12,14 @@ class MarketingAgent(BaseAgent):
         super().__init__(agent_name="Marketing Agent")
     
     def get_context(self) -> str:
-        """Load and format both inventory and sales data for cross-analysis."""
-        df_inventory = self.load_csv("inventory.csv")
-        df_sales = self.load_csv("sales.csv")
+        """Load and format session marketing data."""
+        # Dynamic Session Data
+        df = self.load_any_csv()
         
-        context = ""
-        if df_inventory is not None:
-            context += self.format_dataframe(df_inventory, "CURRENT INVENTORY")
-        if df_sales is not None:
-            context += self.format_dataframe(df_sales, "PAST SALES PERFORMANCE")
-            
-        if not context:
-            return "No data available."
-            
-        return context
+        if df is None:
+            return "No marketing data available for this session."
+        
+        return self.format_dataframe(df, "CURRENT SESSION MARKETING DATA")
     
     def get_system_instruction(self) -> str:
         """Define the marketing agent's role and rules."""

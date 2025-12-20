@@ -89,6 +89,105 @@ def analyze_query(request: QueryRequest):
     except Exception as e:
         return {"response": f"Error: {str(e)}", "agent": "System"}
 
+# --- Data Upload Endpoint ---
+import pandas as pd
+import io
+import time
+from fastapi import UploadFile, File, HTTPException
+from database import get_engine
+
+import shutil
+
+@app.post("/api/upload")
+async def upload_files(files: list[UploadFile] = File(...)):
+    """
+    Uploads multiple files, CLEARS old session data, saves new files to data/, and logs to SQLite.
+    """
+    try:
+        # 1. Clear Data Directory (Session Replacement)
+        # Use safe file deletion instead of rmtree to avoid Windows Access Denied errors
+        data_dir = os.path.join(os.getcwd(), 'data')
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+        else:
+            for filename in os.listdir(data_dir):
+                file_path = os.path.join(data_dir, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print(f"Failed to delete {file_path}. Reason: {e}")
+
+        engine = get_engine()
+        results = []
+        suggestions_agg = []
+        
+        for file in files:
+            # 2. Read file content
+            contents = await file.read()
+            filename = file.filename.lower()
+            
+            # 3. Save to data/ (for Agents that read files)
+            file_path = os.path.join(data_dir, filename)
+            with open(file_path, "wb") as f:
+                f.write(contents)
+            
+            # 4. Load into Pandas
+            if filename.endswith(".csv"):
+                df = pd.read_csv(io.BytesIO(contents))
+            elif filename.endswith(".xlsx") or filename.endswith(".xls"):
+                df = pd.read_excel(io.BytesIO(contents))
+            elif filename.endswith(".json"):
+                df = pd.read_json(io.BytesIO(contents))
+            else:
+                results.append(f"❌ {filename}: Unsupported format")
+                continue
+                
+            # 5. Sanitize and Save to Database (for SQL Agent)
+            clean_name = "".join(c for c in filename.split('.')[0] if c.isalnum())
+            table_name = f"upload_{int(time.time())}_{clean_name}"
+            
+            df.to_sql(table_name, engine, if_exists='replace', index=False)
+            
+            # 6. Generate Stats
+            row_count = len(df)
+            columns = ", ".join(df.columns[:3]) # First 3 cols
+            results.append(f"✅ `{table_name}` ({row_count} rows, cols: {columns}...)")
+            
+            suggestions_agg.append(f"Analyze {clean_name} data")
+
+        # Craft response
+        response_text = "**Session Context Updated:**\n" + "\n".join(results)
+        
+        return {
+            "response": response_text,
+            "agent": "System",
+            "suggestions": suggestions_agg[:3] + ["Compare uploaded datasets"]
+        }
+
+    except Exception as e:
+        return {"response": f"Upload Failed: {str(e)}", "agent": "System"}
+
+@app.get("/api/context")
+def get_context():
+    """
+    Returns the list of active files in the data directory.
+    """
+    try:
+        data_dir = os.path.join(os.getcwd(), 'data')
+        if not os.path.exists(data_dir):
+            return {"files": []}
+            
+        files = [f for f in os.listdir(data_dir) if os.path.isfile(os.path.join(data_dir, f))]
+        # Filter hidden files or system files if needed
+        files = [f for f in files if not f.startswith('.')]
+        
+        return {"files": files}
+    except Exception as e:
+        return {"files": [], "error": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -12,13 +12,14 @@ class InventoryAgent(BaseAgent):
         super().__init__(agent_name="Inventory Agent")
     
     def get_context(self) -> str:
-        """Load and format inventory data."""
-        df_inventory = self.load_csv("inventory.csv")
+        """Load and format session inventory data."""
+        # Use whatever file was uploaded for this session
+        df_inventory = self.load_any_csv()
         
         if df_inventory is None:
-            return "No inventory data available."
+            return "No inventory data available for this session."
         
-        return self.format_dataframe(df_inventory, "REAL-TIME INVENTORY")
+        return self.format_dataframe(df_inventory, "CURRENT SESSION DATA")
     
     def get_system_instruction(self) -> str:
         """Define the inventory agent's role and rules."""

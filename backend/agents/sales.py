@@ -12,13 +12,14 @@ class SalesAgent(BaseAgent):
         super().__init__(agent_name="Sales Agent")
     
     def get_context(self) -> str:
-        """Load and format sales data."""
-        df_sales = self.load_csv("sales.csv")
+        """Load and format session sales data."""
+        # Dynamic Session Data
+        df_sales = self.load_any_csv()
         
         if df_sales is None:
-            return "No sales data available."
+            return "No sales data available for this session."
         
-        return self.format_dataframe(df_sales, "RECENT SALES TRANSACTIONS")
+        return self.format_dataframe(df_sales, "CURRENT SESSION SALES DATA")
     
     def get_system_instruction(self) -> str:
         """Define the sales agent's role and rules."""

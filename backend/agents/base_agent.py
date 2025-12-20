@@ -4,6 +4,8 @@ from google import genai
 from google.genai import types
 from abc import ABC, abstractmethod
 from typing import Optional
+import re
+from database import get_schema_info, get_engine
 
 
 class BaseAgent(ABC):
@@ -97,6 +99,42 @@ class BaseAgent(ABC):
             return pd.read_csv(path)
         except Exception as e:
             print(f"Error loading {filename}: {str(e)}")
+        except Exception as e:
+            print(f"Error loading {filename}: {str(e)}")
+            return None
+
+    def load_any_csv(self) -> Optional[pd.DataFrame]:
+        """
+        Load the first data file (CSV/Excel/JSON) found in the data directory.
+        Used for dynamic session data.
+        """
+        try:
+            data_dir = os.path.join(self.base_dir, "data")
+            if not os.path.exists(data_dir):
+                return None
+            
+            # Look for any supported extension
+            supported_exts = ('.csv', '.xlsx', '.xls', '.json')
+            files = [f for f in os.listdir(data_dir) if f.lower().endswith(supported_exts)]
+            
+            if not files:
+                return None
+                
+            # Load the most recently modified or just the first one
+            filename = files[0]
+            path = os.path.join(data_dir, filename)
+            
+            if filename.lower().endswith('.csv'):
+                return pd.read_csv(path)
+            elif filename.lower().endswith(('.xlsx', '.xls')):
+                return pd.read_excel(path)
+            elif filename.lower().endswith('.json'):
+                return pd.read_json(path)
+                
+            return None
+            
+        except Exception as e:
+            print(f"Error loading session data: {str(e)}")
             return None
     
     def format_dataframe(self, df: pd.DataFrame, title: str) -> str:
@@ -165,18 +203,74 @@ class BaseAgent(ABC):
                     history_text += f"{sender}: {text}\n"
                 history_text += "\n"
             
-            full_prompt = f"{system_instruction}\n\n{context}\n\n{history_text}User Question: {query}"
+            # Schema & SQL Instruction
+            schema_info = get_schema_info()
+            sql_instruction = f"""
+DATA ACCESS:
+You have access to a local SQLite database with these tables:
+{schema_info}
+
+If the user asks a question about this data:
+1. Output a SQL query inside a markdown block: ```sql SELECT ... ```
+2. Do NOT hallucinate data. Only use table names and columns provided above.
+"""
+
+            # Global Suggestion Instruction
+            suggestion_instr = """
+**INTERNAL SUGGESTION INSTRUCTION:**
+At the very end of your response, append a JSON suggestions block with 3 relevant follow-up questions:
+```json suggestions
+["Question 1?", "Question 2?", "Question 3?"]
+```
+"""
+            full_prompt = f"{system_instruction}\n\n{context}\n\n{sql_instruction}\n\n{suggestion_instr}\n\n{history_text}User Question: {query}"
             
             # Use rotated client for this request
             client = self._get_rotated_client()
             
+            # TURN 1: Initial Generation
             response = client.models.generate_content(
                 model=self.model_name,
                 contents=full_prompt
             )
             
+            final_response = response.text
+            
+            # SQL EXECUTION LOOP (Simple 1-step ReAct)
+            sql_match = re.search(r"```sql\s*(.*?)\s*```", final_response, re.DOTALL)
+            if sql_match:
+                sql_block = sql_match.group(1).strip()
+                queries = [q.strip() for q in sql_block.split(';') if q.strip()]
+                
+                combined_results = ""
+                try:
+                    engine = get_engine()
+                    for i, query in enumerate(queries):
+                        # print(f"Executing SQL {i+1}: {query}")
+                        try:
+                            df_result = pd.read_sql(query, engine)
+                            if df_result.empty:
+                                result_str = "Query returned no results."
+                            else:
+                                result_str = df_result.to_markdown(index=False)
+                            combined_results += f"\nScanning Query {i+1} Result:\n{result_str}\n"
+                        except Exception as q_err:
+                            combined_results += f"\nQuery {i+1} Failed: {str(q_err)}\n"
+                    
+                    # TURN 2: Feed data back
+                    prompt_2 = f"{full_prompt}\nAgent Plan: {final_response}\n\nSYSTEM: SQL Execution Results:\n{combined_results}\n\nINSTRUCTION: Using the SQL Results above, provide the final answer to the user."
+                    
+                    response_2 = client.models.generate_content(
+                        model=self.model_name,
+                        contents=prompt_2
+                    )
+                    final_response = response_2.text
+                    
+                except Exception as sql_e:
+                    final_response += f"\n\n(System Error executing SQL: {str(sql_e)})"
+
             result = {
-                "response": response.text,
+                "response": final_response,
                 "agent": self.agent_name
             }
             
