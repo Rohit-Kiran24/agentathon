@@ -5,7 +5,9 @@ from google.genai import types
 from abc import ABC, abstractmethod
 from typing import Optional
 import re
-from database import get_schema_info, get_engine
+import time
+import numpy as np
+from database import get_schema_info, get_schema_info_cached, get_engine
 
 
 class BaseAgent(ABC):
@@ -19,6 +21,10 @@ class BaseAgent(ABC):
     _current_key_idx = 0
     _keys_loaded = False
     
+    # Class Cache with TTL
+    _cache = {}
+    _cache_ttl = 300 # 5 Minutes
+
     def __init__(self, agent_name: str, model_name: str = "gemini-2.5-flash"):
         """
         Initialize the base agent.
@@ -35,7 +41,7 @@ class BaseAgent(ABC):
             self._load_api_keys()
             
         self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.cache = {}  # Simple in-memory cache
+        self.cache = {} 
         
         # Fallback if no keys found
         if not BaseAgent._api_keys:
@@ -80,25 +86,15 @@ class BaseAgent(ABC):
         key = BaseAgent._api_keys[BaseAgent._current_key_idx]
         BaseAgent._current_key_idx = (BaseAgent._current_key_idx + 1) % len(BaseAgent._api_keys)
         
-        # print(f"Using Key Index: {BaseAgent._current_key_idx}") # Debugging
-        
         return genai.Client(api_key=key)
     
     def load_csv(self, filename: str) -> Optional[pd.DataFrame]:
         """
         Load a CSV file from the data directory.
-        
-        Args:
-            filename: Name of the CSV file (e.g., "inventory.csv")
-            
-        Returns:
-            DataFrame if successful, None if error
         """
         try:
             path = os.path.join(self.base_dir, "data", filename)
             return pd.read_csv(path)
-        except Exception as e:
-            print(f"Error loading {filename}: {str(e)}")
         except Exception as e:
             print(f"Error loading {filename}: {str(e)}")
             return None
@@ -106,7 +102,7 @@ class BaseAgent(ABC):
     def load_any_csv(self) -> Optional[pd.DataFrame]:
         """
         Load the first data file (CSV/Excel/JSON) found in the data directory.
-        Used for dynamic session data.
+        Uses a row limit to improve performance.
         """
         try:
             data_dir = os.path.join(self.base_dir, "data")
@@ -119,168 +115,187 @@ class BaseAgent(ABC):
             
             if not files:
                 return None
-                
-            # Load the most recently modified or just the first one
-            filename = files[0]
-            path = os.path.join(data_dir, filename)
             
-            if filename.lower().endswith('.csv'):
-                return pd.read_csv(path)
-            elif filename.lower().endswith(('.xlsx', '.xls')):
-                return pd.read_excel(path)
-            elif filename.lower().endswith('.json'):
-                return pd.read_json(path)
+            file_path = os.path.join(data_dir, files[0])
+            ext = os.path.splitext(file_path)[1].lower()
+            
+            # Limit rows to 500 for speed
+            nrows = 500
+            
+            if ext == '.csv':
+                return pd.read_csv(file_path, nrows=nrows)
+            elif ext in ('.xlsx', '.xls'):
+                return pd.read_excel(file_path, nrows=nrows)
+            elif ext == '.json':
+                # For JSON, read as records and slice
+                df = pd.read_json(file_path, orient='records')
+                return df.head(nrows)
                 
             return None
             
         except Exception as e:
-            print(f"Error loading session data: {str(e)}")
+            print(f"Error loading any data file: {str(e)}")
             return None
     
     def format_dataframe(self, df: pd.DataFrame, title: str) -> str:
-        """
-        Format a DataFrame as a string for inclusion in prompts.
-        
-        Args:
-            df: DataFrame to format
-            title: Title to display above the data
-            
-        Returns:
-            Formatted string representation
-        """
+        """Format a DataFrame as a string for inclusion in prompts."""
         return f"\n{title}:\n{df.to_string(index=False)}\n"
     
     @abstractmethod
     def get_context(self) -> str:
-        """
-        Get the data context for this agent.
-        Each agent must implement this to load its specific data.
-        
-        Returns:
-            Formatted string with relevant data
-        """
+        """Get the data context for this agent."""
         pass
     
     @abstractmethod
     def get_system_instruction(self) -> str:
-        """
-        Get the system instruction/prompt for this agent.
-        Each agent must implement this to define its specific role and rules.
-        
-        Returns:
-            System instruction string
-        """
+        """Get the system instruction/prompt for this agent."""
         pass
     
+    # --- CACHING HELPER METHODS ---
+    def _is_cache_valid(self, query: str) -> bool:
+        """Check if the cache entry for the query exists and is fresh."""
+        if query not in BaseAgent._cache:
+            return False
+        entry = BaseAgent._cache[query]
+        if not isinstance(entry, tuple) or len(entry) != 2:
+            return False
+        _, timestamp = entry
+        return (time.time() - timestamp) < BaseAgent._cache_ttl
+
+    def _get_cached_result(self, query: str):
+        if self._is_cache_valid(query):
+            return BaseAgent._cache[query][0]
+        return None
+
+    def _set_cache(self, query: str, result: dict):
+        BaseAgent._cache[query] = (result, time.time())
+
+    # --- PROMPT HELPER METHODS ---
+    def _truncate_prompt(self, text: str, limit: int = 50000) -> str:
+        """Trim the prompt if it exceeds a very large safety limit."""
+        if len(text) <= limit:
+            return text
+        # If we must truncate, keep the head (instructions) and the tail (latest query)
+        keep = limit // 2
+        return text[:keep] + "\n...[middle truncated]...\n" + text[-keep:]
+
+    # --- FORECASTING HELPER ---
+    def forecast_data(self, df: pd.DataFrame, target_col: str) -> str:
+        """Simple linear regression forecast."""
+        try:
+            series = pd.to_numeric(df[target_col], errors='coerce').dropna()
+            if series.empty:
+                return f"Unable to forecast: column '{target_col}' has no numeric data."
+            x = np.arange(len(series))
+            y = series.values
+            coeffs = np.polyfit(x, y, 1)
+            slope, intercept = coeffs
+            next_x = len(series)
+            forecast = slope * next_x + intercept
+            return f"Forecast for next period ({target_col}): {forecast:.2f}"
+        except Exception as e:
+            return f"Forecast error: {str(e)}"
+
     def analyze(self, query: str, history: list[dict] = []) -> dict:
         """
         Analyze a query using this agent's specific context and instructions.
-        Includes caching to prevent hitting rate limits on repeated queries.
-        
-        Args:
-            query: User's question or request
-            history: List of previous messages
-            
-        Returns:
-            Dictionary with 'response' and 'agent' fields
+        Includes caching, forecasting, and SQL optimizations.
         """
-        # (Optional: check cache with history context? For now simple cache on query)
-        if query in self.cache:
-            print(f"[{self.agent_name}] Returning cached response for: {query}")
-            return self.cache[query]
+        # Check TTL cache
+        if self._is_cache_valid(query):
+             print(f"[{self.agent_name}] Returning cached response for: {query}")
+             return self._get_cached_result(query)
 
         try:
-            context = self.get_context()
+            # Forecast intent
+            forecast_keywords = ["forecast", "predict", "expected", "next month", "profit", "sales"]
+            is_forecast = any(kw in query.lower() for kw in forecast_keywords)
+
+            # Build Prompt Components
             system_instruction = self.get_system_instruction()
+            context = self.get_context() 
+            schema_info = get_schema_info_cached()
             
-            # Format history
-            history_text = ""
-            if history:
-                history_text = "CONVERSATION HISTORY:\n"
-                for msg in history[-5:]: # Keep last 5 turns
-                    sender = "User" if msg.get("sender") == "user" else "Agent"
-                    text = msg.get("text", "")
-                    history_text += f"{sender}: {text}\n"
-                history_text += "\n"
-            
-            # Schema & SQL Instruction
-            schema_info = get_schema_info()
+            # Persona + SQL instruction (Consultant Style)
             sql_instruction = f"""
-DATA ACCESS:
-You have access to a local SQLite database with these tables:
+DATA ACCESS (Optional Helper):
+You have access to a local SQLite database table if needed:
 {schema_info}
 
-If the user asks a question about this data:
-1. Output a SQL query inside a markdown block: ```sql SELECT ... ```
-2. Do NOT hallucinate data. Only use table names and columns provided above.
-"""
+ROLE INSTRUCTION:
+You are a high-level business consultant. Your answers should be rich, strategic, and professional.
+- Use the provided 'CURRENT SESSION DATA' or query the SQL database if you need more details.
+- If the question is strategic, answer using your persona knowledge.
+- BE HELPFUL AND ENGAGING.
 
-            # Global Suggestion Instruction
+SQL TIP:
+- When asked for calculated metrics (like Margin, ROI, Conversion), **ALWAYS SELECT ALL** necessary underlying columns in your SQL query (e.g., SELECT Profit, Revenue... FROM ...).
+- Better to select extra columns (* or many fields) than to miss one.
+"""
             suggestion_instr = """
 **INTERNAL SUGGESTION INSTRUCTION:**
 At the very end of your response, append a JSON suggestions block with 3 relevant follow-up questions:
 ```json suggestions
 ["Question 1?", "Question 2?", "Question 3?"]
 ```
-"""
+"""     
+            # History (Last 5)
+            history_text = ""
+            if history:
+                history_text = "CONVERSATION HISTORY:\n"
+                for msg in history[-5:]: 
+                    sender = "User" if msg.get("sender") == "user" else "Agent"
+                    history_text += f"{sender}: {msg.get('text', '')}\n"
+                history_text += "\n"
+
+            # Combine strictly
             full_prompt = f"{system_instruction}\n\n{context}\n\n{sql_instruction}\n\n{suggestion_instr}\n\n{history_text}User Question: {query}"
-            
-            # Use rotated client for this request
+            full_prompt = self._truncate_prompt(full_prompt)
+
+            # Turn 1
             client = self._get_rotated_client()
-            
-            # TURN 1: Initial Generation
-            response = client.models.generate_content(
-                model=self.model_name,
-                contents=full_prompt
-            )
-            
+            response = client.models.generate_content(model=self.model_name, contents=full_prompt)
             final_response = response.text
             
-            # SQL EXECUTION LOOP (Simple 1-step ReAct)
+            # Forecast Logic
+            if is_forecast:
+                df = self.load_any_csv()
+                if df is not None:
+                     numeric_cols = df.select_dtypes(include='number').columns.tolist()
+                     if numeric_cols:
+                         forecast_msg = self.forecast_data(df, numeric_cols[0])
+                         final_response += f"\n\n{forecast_msg}"
+
+            # SQL Execution
             sql_match = re.search(r"```sql\s*(.*?)\s*```", final_response, re.DOTALL)
             if sql_match:
                 sql_block = sql_match.group(1).strip()
                 queries = [q.strip() for q in sql_block.split(';') if q.strip()]
-                
-                combined_results = ""
+                combined = ""
                 try:
                     engine = get_engine()
-                    for i, query in enumerate(queries):
-                        # print(f"Executing SQL {i+1}: {query}")
+                    for i, q in enumerate(queries):
                         try:
-                            df_result = pd.read_sql(query, engine)
-                            if df_result.empty:
-                                result_str = "Query returned no results."
+                            df_res = pd.read_sql(q, engine)
+                            if len(df_res) > 50:
+                                df_res = df_res.head(50)
+                                res_str = df_res.to_markdown(index=False) + "\n... (truncated)"
                             else:
-                                result_str = df_result.to_markdown(index=False)
-                            combined_results += f"\nScanning Query {i+1} Result:\n{result_str}\n"
-                        except Exception as q_err:
-                            combined_results += f"\nQuery {i+1} Failed: {str(q_err)}\n"
+                                res_str = df_res.to_markdown(index=False) if not df_res.empty else "No results."
+                            combined += f"\nQuery {i+1} Result:\n{res_str}\n"
+                        except Exception as e:
+                            combined += f"\nQuery {i+1} Failed: {str(e)}\n"
                     
-                    # TURN 2: Feed data back
-                    prompt_2 = f"{full_prompt}\nAgent Plan: {final_response}\n\nSYSTEM: SQL Execution Results:\n{combined_results}\n\nINSTRUCTION: Using the SQL Results above, provide the final answer to the user."
-                    
-                    response_2 = client.models.generate_content(
-                        model=self.model_name,
-                        contents=prompt_2
-                    )
+                    # Turn 2
+                    prompt_2 = f"{full_prompt}\nAgent Plan: {final_response}\n\nSYSTEM: SQL Execution Results:\n{combined}\n\nINSTRUCTION: Using the SQL Results above, provide the final answer to the user."
+                    prompt_2 = self._truncate_prompt(prompt_2, limit=60000)
+                    response_2 = client.models.generate_content(model=self.model_name, contents=prompt_2)
                     final_response = response_2.text
-                    
-                except Exception as sql_e:
-                    final_response += f"\n\n(System Error executing SQL: {str(sql_e)})"
+                except Exception as e:
+                    final_response += f"\n\n(System Error executing SQL: {e})"
 
-            result = {
-                "response": final_response,
-                "agent": self.agent_name
-            }
-            
-            # Save to cache
-            self.cache[query] = result
+            result = {"response": final_response, "agent": self.agent_name}
+            self._set_cache(query, result)
             return result
-
         except Exception as e:
-            # If error is quota related, we could implement retry here, but rotation usually handles next request
-            return {
-                "response": f"Error: {str(e)}",
-                "agent": f"{self.agent_name} (Error)"
-            }
+            return {"response": f"Error: {e}", "agent": f"{self.agent_name} (Error)"}

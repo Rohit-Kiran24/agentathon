@@ -34,3 +34,9 @@ def get_schema_info():
         schema_str += f"- Table `{table}` has columns: {', '.join(columns)}\n"
         
     return schema_str
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def get_schema_info_cached():
+    """Cached version of get_schema_info to avoid recomputation."""
+    return get_schema_info()
