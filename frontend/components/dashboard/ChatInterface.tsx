@@ -32,15 +32,18 @@ export default function ChatInterface() {
 
     // Helper: Parse message for charts
     const parseMessage = (text: string) => {
-        const chartRegex = /```json chart\n([\s\S]*?)\n```/;
+        // Regex allows "json chart" OR just "json", and handles varying whitespace/newlines
+        const chartRegex = /```json(?: chart)?\s*([\s\S]*?)\s*```/;
         const match = text.match(chartRegex);
 
         if (match) {
             try {
-                const chartData = JSON.parse(match[1]);
-                // Remove the chart block from text to avoid double rendering
-                const cleanText = text.replace(chartRegex, '').trim();
-                return { cleanText, chartData };
+                // Check if it looks like our chart data (has "type" and "data")
+                const parsed = JSON.parse(match[1]);
+                if (parsed.type && parsed.data) {
+                    const cleanText = text.replace(chartRegex, '').trim();
+                    return { cleanText, chartData: parsed };
+                }
             } catch (e) {
                 console.error("Failed to parse chart JSON", e);
             }

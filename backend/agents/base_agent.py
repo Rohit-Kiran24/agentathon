@@ -60,7 +60,16 @@ class BaseAgent(ABC):
         print(f"✅ Loaded {len(cls._api_keys)} API keys for rotation.")
 
     def _get_rotated_client(self):
-        """Get a genai Client using the next available API key (Round Robin)."""
+        """Get a genai Client using Vertex AI (if configured) or API Key fallback."""
+        # 1. Check for Vertex AI Config
+        project_id = os.getenv("PROJECT_ID")
+        location = os.getenv("LOCATION")
+        
+        if project_id and location:
+             # Use Vertex AI (credentials implied via ADC)
+             return genai.Client(vertexai=True, project=project_id, location=location)
+
+        # 2. Existing API Key Logic
         if not BaseAgent._api_keys:
             # Absolute fallback
             return genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
@@ -125,18 +134,19 @@ class BaseAgent(ABC):
         """
         pass
     
-    def analyze(self, query: str) -> dict:
+    def analyze(self, query: str, history: list[dict] = []) -> dict:
         """
         Analyze a query using this agent's specific context and instructions.
         Includes caching to prevent hitting rate limits on repeated queries.
         
         Args:
             query: User's question or request
+            history: List of previous messages
             
         Returns:
             Dictionary with 'response' and 'agent' fields
         """
-        # Check cache first
+        # (Optional: check cache with history context? For now simple cache on query)
         if query in self.cache:
             print(f"[{self.agent_name}] Returning cached response for: {query}")
             return self.cache[query]
@@ -145,7 +155,17 @@ class BaseAgent(ABC):
             context = self.get_context()
             system_instruction = self.get_system_instruction()
             
-            full_prompt = f"{system_instruction}\n\n{context}\n\nUser Question: {query}"
+            # Format history
+            history_text = ""
+            if history:
+                history_text = "CONVERSATION HISTORY:\n"
+                for msg in history[-5:]: # Keep last 5 turns
+                    sender = "User" if msg.get("sender") == "user" else "Agent"
+                    text = msg.get("text", "")
+                    history_text += f"{sender}: {text}\n"
+                history_text += "\n"
+            
+            full_prompt = f"{system_instruction}\n\n{context}\n\n{history_text}User Question: {query}"
             
             # Use rotated client for this request
             client = self._get_rotated_client()

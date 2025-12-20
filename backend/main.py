@@ -27,8 +27,9 @@ app.add_middleware(
 
 class QueryRequest(BaseModel):
     query: str
+    history: list[dict] = []
 
-def route_to_agent(query: str):
+def route_to_agent(query: str, history: list[dict] = []):
     """
     Intelligent routing: determines which agent should handle the query.
     Returns the appropriate agent based on keywords in the query.
@@ -66,7 +67,8 @@ def route_to_agent(query: str):
     elif inventory_score > 0:
         return inventory_agent
     else:
-        # Default to General Agent for completely unknown/off-topic queries
+        # If no keywords match, check history for context or default to General
+        # For now, default to General Agent which can enforce guardrails
         return general_agent
 
 @app.post("/api/analyze")
@@ -77,10 +79,10 @@ def analyze_query(request: QueryRequest):
     """
     try:
         # Route to the appropriate agent
-        agent = route_to_agent(request.query)
+        agent = route_to_agent(request.query, request.history)
         
         # Let the agent analyze the query
-        result = agent.analyze(request.query)
+        result = agent.analyze(request.query, request.history)
         
         return result
 
