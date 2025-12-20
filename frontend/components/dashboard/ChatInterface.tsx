@@ -5,63 +5,102 @@ import { Send, Mic, Paperclip, Bot, User } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import ChartRenderer from './ChartRenderer';
+
+interface Message {
+    id: number;
+    sender: 'user' | 'agent';
+    text: string;
+    isThinking: boolean;
+    chartData?: any; // Holds the parsed chart JSON if present
+}
+
 export default function ChatInterface() {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
 
     // 1. State to store the real conversation
-    const [messages, setMessages] = useState([
+    const [messages, setMessages] = useState<Message[]>([
         {
             id: 1,
             sender: 'agent',
             text: 'System initialized. Connected to Python Backend. Ready for commands.',
-            isThinking: false
+            isThinking: false,
+            chartData: null
         }
     ]);
+
+    // Helper: Parse message for charts
+    const parseMessage = (text: string) => {
+        const chartRegex = /```json chart\n([\s\S]*?)\n```/;
+        const match = text.match(chartRegex);
+
+        if (match) {
+            try {
+                const chartData = JSON.parse(match[1]);
+                // Remove the chart block from text to avoid double rendering
+                const cleanText = text.replace(chartRegex, '').trim();
+                return { cleanText, chartData };
+            } catch (e) {
+                console.error("Failed to parse chart JSON", e);
+            }
+        }
+        return { cleanText: text, chartData: null };
+    };
 
     // 2. The function to send data to Python
     const handleSend = async () => {
         if (!input.trim()) return;
 
-        // Add User Message to UI immediately
-        const userMsg = { id: Date.now(), sender: 'user', text: input, isThinking: false };
+        // Add User Message
+        const userMsg: Message = { id: Date.now(), sender: 'user', text: input, isThinking: false, chartData: null };
         setMessages(prev => [...prev, userMsg]);
 
-        const query = input; // Store query to send
-        setInput('');        // Clear input box
+        const query = input;
+        setInput('');
         setLoading(true);
 
         try {
-            // Add a temporary "Thinking..." bubble
-            setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'agent', text: '', isThinking: true }]);
+            // "Thinking..." bubble
+            setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'agent', text: '', isThinking: true, chartData: null }]);
 
-            // 3. Call the API
+            // Prepare history (exclude thinking messages)
+            const historyPayload = messages
+                .filter(m => !m.isThinking && m.text)
+                .map(m => ({ sender: m.sender, text: m.text }));
+
+            // Call API
             const res = await fetch('http://localhost:8000/api/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: query }),
+                body: JSON.stringify({
+                    query: query,
+                    history: historyPayload
+                }),
             });
 
             const data = await res.json();
 
-            // 4. Replace "Thinking" with real response
+            // Parse for charts
+            const { cleanText, chartData } = parseMessage(data.response);
+
+            // Replace "Thinking" with real response
             setMessages(prev => {
-                // Remove the thinking bubble
                 const newHistory = prev.filter(msg => !msg.isThinking);
-                // Add the real response
                 return [...newHistory, {
                     id: Date.now() + 2,
                     sender: 'agent',
-                    text: data.response, // This comes from Python
+                    text: cleanText,
+                    chartData: chartData, // Attach chart data
                     isThinking: false
                 }];
             });
 
         } catch (error) {
-            console.error("API Error:", error);
-            // Remove thinking bubble if it fails
+            // ... error handling ...
+            console.error(error);
             setMessages(prev => prev.filter(msg => !msg.isThinking));
-            alert("Failed to connect to Backend. Is Python running?");
+            alert("Failed to connect");
         } finally {
             setLoading(false);
         }
@@ -77,9 +116,8 @@ export default function ChatInterface() {
                         key={msg.id}
                         className={`flex gap-4 ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
                     >
-                        {/* Avatar Circle */}
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border border-white/10 ${msg.sender === 'agent' ? 'bg-zinc-900 text-white' : 'bg-white text-black'
-                            }`}>
+                        {/* Avatar... */}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border border-white/10 ${msg.sender === 'agent' ? 'bg-zinc-900 text-white' : 'bg-white text-black'}`}>
                             {msg.sender === 'agent' ? <Bot size={20} /> : <User size={20} />}
                         </div>
 
@@ -95,6 +133,16 @@ export default function ChatInterface() {
                                     </span>
                                 ) : (
                                     <div className="markdown-content text-sm md:text-base">
+                                        {/* 1. Render Chart if exists */}
+                                        {msg.chartData && (
+                                            <ChartRenderer
+                                                type={msg.chartData.type}
+                                                title={msg.chartData.title}
+                                                data={msg.chartData.data}
+                                            />
+                                        )}
+
+                                        {/* 2. Render Text */}
                                         {msg.sender === 'agent' ? (
                                             <ReactMarkdown
                                                 remarkPlugins={[remarkGfm]}
@@ -121,9 +169,9 @@ export default function ChatInterface() {
                     </div>
                 ))}
             </div>
-
-            {/* Input Zone */}
+            {/* Input Zone... */}
             <div className="p-6 absolute bottom-0 w-full bg-gradient-to-t from-black via-black to-transparent">
+                {/* ... (existing input code) ... */}
                 <div className="relative group">
                     <div className="absolute -inset-0.5 bg-gradient-to-r from-white/20 to-zinc-500/20 rounded-full opacity-50 group-hover:opacity-100 transition duration-500 blur"></div>
 
