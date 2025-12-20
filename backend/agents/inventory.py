@@ -70,7 +70,7 @@ RESPONSE STRUCTURE (For General Reports ONLY):
    - **Reason**: Lead time is [D] days.
 
 **INTERNAL INSTRUCTION:**
-If providing data, you **MUST** append a JSON chart block at the very end.
+If providing data, you **MUST** append a JSON chart block.
 DO NOT mention "Visualization Rules".
 
 ```json chart
@@ -82,5 +82,14 @@ DO NOT mention "Visualization Rules".
     {"name": "Item B", "value": 5}
   ]
 }
+```
+
+**INTERNAL ACTION INSTRUCTION:**
+If recommending specific actions (like ordering stock), append a generic JSON actions block:
+```json actions
+[
+  {"label": "Order Stock (Item A)", "type": "order"},
+  {"label": "Check Supplier Status", "type": "check"}
+]
 ```
 """

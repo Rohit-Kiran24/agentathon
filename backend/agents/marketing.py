@@ -93,4 +93,13 @@ DO NOT mention "Visualization Rules".
   ]
 }
 ```
+
+**INTERNAL ACTION INSTRUCTION:**
+If recommending specific actions, append a JSON actions block:
+```json actions
+[
+  {"label": "Launch Campaign (Social)", "type": "campaign"},
+  {"label": "Approve Budget", "type": "finance"}
+]
+```
 """
