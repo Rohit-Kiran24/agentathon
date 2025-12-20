@@ -306,7 +306,7 @@ def get_dashboard_stats(days: int = 365):
             # Ensure date is string and sorted
             sales_df['date'] = sales_df['date'].astype(str)
             
-            if days <= 90:
+            if days <= 32:
                 # Group by Week (YYYY-WW)
                 # We use date_dt from before or convert again
                 sales_df['date_dt'] = pd.to_datetime(sales_df['date'])

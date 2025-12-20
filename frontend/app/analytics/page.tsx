@@ -124,20 +124,20 @@ export default function AnalyticsPage() {
                             </h3>
                         </div>
                         <div className="p-2 space-y-2 overflow-y-auto flex-1 max-h-[500px] scrollbar-hide">
-                            {data.stockout_forecast?.filter((x: any) => x.days_left < 7).length === 0 && (
+                            {data.stockout_forecast?.filter((x: any) => x.days_left < 30).length === 0 && (
                                 <div className="text-center p-8 text-zinc-600 text-sm">No critical alerts.</div>
                             )}
-                            {data.stockout_forecast?.filter((x: any) => x.days_left === 0).map((item: any, i: number) => (
+                            {data.stockout_forecast?.filter((x: any) => x.days_left <= 7).map((item: any, i: number) => (
                                 <div key={i} className="p-3 bg-red-900/20 border border-red-500/20 rounded-xl flex items-center justify-between">
                                     <div className="min-w-0">
                                         <p className="text-xs font-bold text-red-200 truncate pr-2">{item.name}</p>
-                                        <p className="text-[10px] text-red-400 uppercase tracking-wider mt-0.5">Stockout Risk</p>
+                                        <p className="text-[10px] text-red-400 uppercase tracking-wider mt-0.5">Critical Risk</p>
                                     </div>
-                                    <span className="shrink-0 px-2 py-1 bg-red-500 text-white text-[10px] font-bold rounded">0 DAYS</span>
+                                    <span className="shrink-0 px-2 py-1 bg-red-500 text-white text-[10px] font-bold rounded">{item.days_left} DAYS</span>
                                 </div>
                             ))}
-                            {/* Warning Items */}
-                            {data.stockout_forecast?.filter((x: any) => x.days_left > 0 && x.days_left < 7).map((item: any, i: number) => (
+                            {/* Warning Items (8-30 Days) */}
+                            {data.stockout_forecast?.filter((x: any) => x.days_left > 7 && x.days_left < 30).map((item: any, i: number) => (
                                 <div key={i} className="p-3 bg-orange-900/10 border border-orange-500/10 rounded-xl flex items-center justify-between">
                                     <div className="min-w-0">
                                         <p className="text-xs font-bold text-orange-200 truncate pr-2">{item.name}</p>
@@ -162,13 +162,13 @@ export default function AnalyticsPage() {
                             </div>
                             <h3 className="text-emerald-400 font-bold tracking-widest uppercase text-sm mb-2">Net Profit Realized</h3>
                             <div className="flex items-end gap-4">
-                                <span className="text-6xl font-black text-white tracking-tighter">${(data.kpis.net_profit || 0).toLocaleString()}</span>
+                                <span className="text-6xl font-black text-white tracking-tighter">₹{(data.kpis.net_profit || 0).toLocaleString()}</span>
                                 <div className="mb-2 px-3 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-300 font-bold text-sm flex items-center gap-1">
                                     <ArrowUpRight size={14} /> {data.kpis.net_margin}% Margin
                                 </div>
                             </div>
                             <p className="text-zinc-400 text-sm mt-4 max-w-md">
-                                Total pure profit generated after deducting cost of goods sold from {data.kpis.revenue.toLocaleString()} revenue.
+                                Total pure profit generated after deducting cost of goods sold from ₹{data.kpis.revenue.toLocaleString()} revenue.
                             </p>
                         </div>
 
@@ -178,7 +178,7 @@ export default function AnalyticsPage() {
                             <div className="flex items-center gap-2 mb-2 text-blue-400">
                                 <Zap size={18} /> <span className="text-xs font-bold uppercase tracking-wider">Revenue</span>
                             </div>
-                            <span className="text-4xl font-bold text-white tracking-tight">${data.kpis.revenue.toLocaleString()}</span>
+                            <span className="text-4xl font-bold text-white tracking-tight">₹{data.kpis.revenue.toLocaleString()}</span>
                             <div className="mt-4 h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
                                 <div className="h-full bg-blue-500 w-[70%]"></div>
                             </div>
@@ -189,7 +189,7 @@ export default function AnalyticsPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <BentoStat
                             label="Inventory Value"
-                            value={`$${data.kpis.inventory_valuation.toLocaleString()}`}
+                            value={`₹${data.kpis.inventory_valuation.toLocaleString()}`}
                             icon={<Package size={16} />}
                             color="text-purple-400"
                             desc="Total cost value of all items currently in stock."
@@ -203,7 +203,7 @@ export default function AnalyticsPage() {
                         />
                         <BentoStat
                             label="Avg Order Value"
-                            value={`$${data.kpis.aov.toLocaleString()}`}
+                            value={`₹${data.kpis.aov.toLocaleString()}`}
                             icon={<DollarSign size={16} />}
                             color="text-pink-400"
                             desc="Average monetary value of each customer transaction."
@@ -239,22 +239,22 @@ export default function AnalyticsPage() {
                                             tick={{ fontSize: 10, fill: '#71717a' }}
                                             axisLine={false}
                                             tickLine={false}
-                                            tickFormatter={(val) => {
-                                                // Handle "YYYY-MM" or "YYYY-W##"
+                                            tickFormatter={(val, index) => {
                                                 try {
                                                     const strVal = val.toString();
                                                     if (strVal.includes('W')) {
-                                                        return strVal.split('-')[1]; // Return "W32"
+                                                        return `Week ${index + 1}`;
                                                     }
                                                     const dateStr = strVal + '-01';
                                                     if (!isNaN(Date.parse(dateStr))) {
-                                                        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short' });
+                                                        const date = new Date(dateStr);
+                                                        return date.toLocaleString('default', { month: 'short' });
                                                     }
-                                                    return val;
+                                                    return strVal;
                                                 } catch (e) { return val; }
                                             }}
                                         />
-                                        <YAxis tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} tickFormatter={(val) => `$${val / 1000}k`} />
+                                        <YAxis tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} tickFormatter={(val) => `₹${val / 1000}k`} />
                                         <Tooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '8px' }} itemStyle={{ color: '#e4e4e7' }} />
                                         <Area type="monotone" dataKey="value" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
                                     </AreaChart>
@@ -276,21 +276,22 @@ export default function AnalyticsPage() {
                                             tick={{ fontSize: 10, fill: '#71717a' }}
                                             axisLine={false}
                                             tickLine={false}
-                                            tickFormatter={(val) => {
+                                            tickFormatter={(val, index) => {
                                                 try {
                                                     const strVal = val.toString();
                                                     if (strVal.includes('W')) {
-                                                        return strVal.split('-')[1]; // Return "W32"
+                                                        return `Week ${index + 1}`;
                                                     }
                                                     const dateStr = strVal + '-01';
                                                     if (!isNaN(Date.parse(dateStr))) {
-                                                        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short' });
+                                                        const date = new Date(dateStr);
+                                                        return date.toLocaleString('default', { month: 'short' });
                                                     }
-                                                    return val;
+                                                    return strVal;
                                                 } catch (e) { return val; }
                                             }}
                                         />
-                                        <YAxis tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} tickFormatter={(val) => `$${val / 1000}k`} />
+                                        <YAxis tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} tickFormatter={(val) => `₹${val / 1000}k`} />
                                         <Tooltip cursor={{ fill: '#10b981', opacity: 0.1 }} contentStyle={{ backgroundColor: '#09090b', border: '1px solid #059669', borderRadius: '8px' }} itemStyle={{ color: '#e4e4e7' }} />
                                         <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
                                     </BarChart>
@@ -327,7 +328,7 @@ export default function AnalyticsPage() {
                                         <Tooltip
                                             contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '8px' }}
                                             itemStyle={{ color: '#e4e4e7' }}
-                                            formatter={(value: any) => [`$${value.toLocaleString()} (${((value / data.kpis.inventory_valuation) * 100).toFixed(1)}%)`, 'Value']}
+                                            formatter={(value: any) => [`₹${value.toLocaleString()} (${((value / data.kpis.inventory_valuation) * 100).toFixed(1)}%)`, 'Value']}
                                         />
                                         <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" wrapperStyle={{ right: 0 }} />
                                     </PieChart>
@@ -342,12 +343,12 @@ export default function AnalyticsPage() {
                             </h3>
                             <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-zinc-700">
                                 {data.charts.top_products.map((prod: any, i: number) => (
-                                    <div key={i} className="flex items-center justify-between group" title={`Rank #${i + 1}: ${prod.name} generated $${prod.value.toLocaleString()} in revenue.`}>
+                                    <div key={i} className="flex items-center justify-between group" title={`Rank #${i + 1}: ${prod.name} generated ₹${prod.value.toLocaleString()} in revenue.`}>
                                         <div className="flex items-center gap-3 overflow-hidden">
                                             <span className="text-xs font-mono text-zinc-500">0{i + 1}</span>
                                             <span className="text-sm font-medium text-zinc-300 truncate w-32 group-hover:text-white transition-colors">{prod.name}</span>
                                         </div>
-                                        <span className="text-sm font-bold text-emerald-400">${prod.value.toLocaleString()}</span>
+                                        <span className="text-sm font-bold text-emerald-400">₹{prod.value.toLocaleString()}</span>
                                     </div>
                                 ))}
                             </div>
@@ -384,16 +385,16 @@ export default function AnalyticsPage() {
                                 <h3 className="text-zinc-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
                                     <AlertOctagon size={16} /> Dead Stock
                                 </h3>
-                                <span className="text-xs font-mono text-zinc-500">${(data.kpis.dead_stock_value / 1000).toFixed(1)}k</span>
+                                <span className="text-xs font-mono text-zinc-500">₹{(data.kpis.dead_stock_value / 1000).toFixed(1)}k</span>
                             </div>
                             <div className="flex-1 overflow-y-auto space-y-2 pr-2">
                                 {data.dead_stock?.map((item: any, i: number) => (
-                                    <div key={i} className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-xl hover:bg-zinc-800 transition-colors" title={`${item.stock} units unsold. Capital frozen: $${item.value.toLocaleString()}`}>
+                                    <div key={i} className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-xl hover:bg-zinc-800 transition-colors" title={`${item.stock} units unsold. Capital frozen: ₹${item.value.toLocaleString()}`}>
                                         <div>
                                             <p className="text-sm font-bold text-zinc-300 truncate w-32">{item.name}</p>
                                             <p className="text-[10px] text-zinc-500">{item.stock} units</p>
                                         </div>
-                                        <span className="text-sm font-mono text-zinc-400">${item.value.toLocaleString()}</span>
+                                        <span className="text-sm font-mono text-zinc-400">₹{item.value.toLocaleString()}</span>
                                     </div>
                                 ))}
                             </div>
