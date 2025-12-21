@@ -7,15 +7,7 @@ import GlassCalendar from "@/components/dashboard/GlassCalendar";
 
 export default function Home() {
     return (
-        <main className="flex min-h-screen bg-[#050505] text-white selection:bg-cyan-500/30 overflow-hidden relative">
-
-            {/* 1. Dynamic Background Grid (Cinematic) */}
-            <div className="absolute inset-0 z-0 pointer-events-none">
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150"></div>
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-                <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-cyan-500 opacity-20 blur-[100px] animate-pulse-slow"></div>
-                <div className="absolute right-0 bottom-0 -z-10 h-[310px] w-[310px] rounded-full bg-purple-500 opacity-20 blur-[100px] animate-pulse-slow"></div>
-            </div>
+        <main className="flex min-h-screen bg-transparent text-white selection:bg-cyan-500/30 overflow-hidden relative">
 
             {/* 2. Floating Sidebar */}
             <div className="relative z-50">

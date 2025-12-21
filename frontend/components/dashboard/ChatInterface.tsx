@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Bot, User, Rocket, CheckCircle, Sparkles, Download, CalendarCheck } from 'lucide-react';
+import { Send, Mic, Bot, User, Rocket, CheckCircle, Sparkles, Download, CalendarCheck, ArrowUp, ArrowRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -178,6 +178,54 @@ export default function ChatInterface() {
         setTimeout(() => setToast({ show: false, msg: '' }), 3000);
     };
 
+    const [placeholder, setPlaceholder] = useState("");
+    const placeholders = [
+        "Ask about monthly sales trends...",
+        "Predict inventory needed for next week...",
+        "Schedule a meeting with the marketing team...",
+        "Analyze customer feedback sentiment...",
+        "What is the dead stock status?"
+    ];
+
+    useEffect(() => {
+        let currentIdx = 0;
+        let charIdx = 0;
+        let isDeleting = false;
+        let timeout: NodeJS.Timeout;
+
+        const type = () => {
+            const currentText = placeholders[currentIdx];
+
+            if (isDeleting) {
+                setPlaceholder(currentText.substring(0, charIdx - 1));
+                charIdx--;
+            } else {
+                setPlaceholder(currentText.substring(0, charIdx + 1));
+                charIdx++;
+            }
+
+            // Typing Speed
+            let typeSpeed = 50;
+            if (isDeleting) typeSpeed = 30;
+
+            // Pause at end
+            if (!isDeleting && charIdx === currentText.length) {
+                typeSpeed = 2000;
+                isDeleting = true;
+            } else if (isDeleting && charIdx === 0) {
+                isDeleting = false;
+                currentIdx = (currentIdx + 1) % placeholders.length;
+                typeSpeed = 500;
+            }
+
+            timeout = setTimeout(type, typeSpeed);
+        };
+
+        timeout = setTimeout(type, 1000);
+
+        return () => clearTimeout(timeout);
+    }, []);
+
     return (
         <div className="flex flex-col h-full w-full max-w-5xl mx-auto relative px-4">
 
@@ -220,9 +268,9 @@ export default function ChatInterface() {
                         <div className={`flex flex-col max-w-[85%] relative transition-all duration-300`}>
 
                             {/* The Bubble */}
-                            <div className={`relative px-8 py-6 rounded-2xl backdrop-blur-xl border shadow-xl ${msg.sender === 'agent'
-                                ? 'bg-zinc-900/60 border-white/5 text-zinc-100 hover:border-brand-accent/20' // Agent style
-                                : 'bg-brand-accent/10 border-brand-accent/20 text-white rounded-tr-sm' // User style
+                            <div className={`relative px-8 py-6 rounded-2xl backdrop-blur-xl border shadow-xl transition-all duration-300 ${msg.sender === 'agent'
+                                ? 'bg-zinc-900/60 border-white/5 text-zinc-100 hover:border-brand-accent/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)] hover:bg-zinc-900/80' // Agent style
+                                : 'bg-brand-accent/10 border-brand-accent/20 text-white rounded-tr-sm hover:bg-brand-accent/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)]' // User style
                                 }`}>
 
                                 {msg.isThinking ? (
@@ -234,7 +282,7 @@ export default function ChatInterface() {
                                     <div className="markdown-content text-[15px] leading-7 font-light tracking-wide">
                                         {/* Chart First (if any) */}
                                         {msg.chartData && msg.chartData.type !== 'suggestion' && (
-                                            <div className="mb-6 rounded-xl overflow-hidden border border-white/5 shadow-2xl bg-black/40 p-1">
+                                            <div className="mb-6 rounded-xl overflow-hidden border border-white/5 shadow-2xl bg-black/40 p-1 transition-all duration-500 hover:border-white/20 hover:shadow-[0_0_30px_rgba(0,0,0,0.5)] hover:scale-[1.02]">
                                                 <ChartRenderer
                                                     type={msg.chartData.type}
                                                     title={msg.chartData.title}
@@ -295,7 +343,7 @@ export default function ChatInterface() {
                                             <div className="mt-6 pt-4 border-t border-white/10">
                                                 <button
                                                     onClick={() => handleActionClick(msg.actions!)}
-                                                    className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-emerald-900/20 transition-all hover:scale-105 active:scale-95 w-full justify-center group"
+                                                    className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-400 hover:from-emerald-500 hover:to-emerald-300 text-white px-5 py-2.5 rounded-xl font-medium shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:shadow-[0_0_30px_rgba(16,185,129,0.6)] transition-all hover:scale-105 active:scale-95 w-full justify-center group border border-emerald-500/20"
                                                 >
                                                     <Rocket size={18} className="group-hover:animate-bounce" />
                                                     Do It! (Execute {msg.actions.length} Actions)
@@ -317,7 +365,7 @@ export default function ChatInterface() {
                                                     <button
                                                         key={idx}
                                                         onClick={() => handleSend(sug)}
-                                                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm rounded-full transition-colors border border-white/5 hover:border-white/20 text-left"
+                                                        className="px-4 py-2 bg-zinc-800/50 hover:bg-zinc-700 text-zinc-300 hover:text-white text-sm rounded-full transition-all border border-white/5 hover:border-purple-500/50 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)] text-left hover:-translate-y-0.5"
                                                     >
                                                         {sug}
                                                     </button>
@@ -354,9 +402,9 @@ export default function ChatInterface() {
                 {/* MAIN INPUT CAPSULE */}
                 <div className="w-full max-w-4xl relative group flex-1">
                     {/* Glow Effect */}
-                    <div className="absolute -inset-1 bg-gradient-to-r from-brand-accent via-brand-purple to-brand-secondary rounded-[2rem] opacity-20 blur-xl group-hover:opacity-40 transition duration-700 animate-pulse-slow"></div>
+                    <div className="absolute -inset-1 bg-gradient-to-r from-blue-600/30 via-purple-600/30 to-indigo-600/30 rounded-[2rem] opacity-20 blur-xl group-hover:opacity-50 transition duration-700"></div>
 
-                    <div className="relative flex items-center gap-3 bg-zinc-950/80 backdrop-blur-2xl border border-white/10 p-2 pl-6 rounded-[2rem] shadow-2xl ring-1 ring-white/5 focus-within:ring-brand-accent/30 transition-all">
+                    <div className="relative flex items-center gap-3 bg-zinc-950/80 backdrop-blur-2xl border border-white/10 p-2 pl-6 rounded-[2rem] shadow-2xl ring-1 ring-white/5 focus-within:ring-cyan-500/50 transition-all duration-300 hover:border-white/30 hover:shadow-[0_0_30px_rgba(34,211,238,0.15)] hover:scale-[1.01]">
 
                         {/* Text Input */}
                         <input
@@ -364,21 +412,21 @@ export default function ChatInterface() {
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                            placeholder="Ask BizNexus AI..."
+                            placeholder={placeholder}
                             disabled={loading}
-                            className="flex-1 bg-transparent border-none outline-none text-base text-white placeholder-zinc-500 h-10"
+                            className="flex-1 bg-transparent border-none outline-none text-base text-white placeholder-zinc-500 h-10 group-hover:placeholder-zinc-400 transition-all duration-300"
                         />
 
-                        <div className="flex items-center gap-1 pr-1">
-                            <button className="p-3 text-zinc-500 hover:text-white transition-colors rounded-full hover:bg-white/5">
+                        <div className="flex items-center gap-2 pr-2">
+                            <button className="p-3 text-zinc-500 hover:text-white transition-colors rounded-full hover:bg-white/10 hover:scale-110 active:scale-95">
                                 <Mic size={20} />
                             </button>
                             <button
                                 onClick={() => handleSend()}
                                 disabled={loading || !input.trim()}
-                                className="p-3 bg-gradient-to-r from-brand-secondary to-brand-accent text-black rounded-full hover:shadow-[0_0_20px_rgba(0,242,254,0.4)] transition-all disabled:opacity-50 disabled:shadow-none transform active:scale-95"
+                                className="p-3 bg-cyan-500 text-black rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.4)] hover:shadow-[0_0_25px_rgba(6,182,212,0.6)] hover:bg-cyan-400 transition-all disabled:opacity-50 disabled:shadow-none transform active:scale-95 hover:scale-110"
                             >
-                                <Send size={20} fill="currentColor" strokeWidth={2.5} />
+                                <ArrowRight size={24} strokeWidth={3} />
                             </button>
                         </div>
                     </div>

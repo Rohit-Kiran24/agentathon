@@ -222,12 +222,10 @@ export default function WhatIfPage() {
     if (!mounted) return null;
 
     return (
-        <main className="flex min-h-screen bg-black text-white selection:bg-white/30">
+
+        <main className="flex min-h-screen bg-transparent text-white selection:bg-white/30">
             <Sidebar />
             <section className="flex-1 pl-24 pr-8 py-8 h-screen overflow-y-auto w-full relative">
-                {/* Background Gradients */}
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] -z-10" />
-                <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] -z-10" />
 
                 <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
 

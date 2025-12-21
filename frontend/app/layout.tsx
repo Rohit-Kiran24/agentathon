@@ -11,6 +11,8 @@ export const metadata: Metadata = {
 
 import { AuthProvider } from "@/context/AuthContext";
 
+import GlobalBackground from "@/components/ui/GlobalBackground";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -19,7 +21,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <GlobalBackground />
+          <div className="relative z-10 min-h-screen">
+            {children}
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );

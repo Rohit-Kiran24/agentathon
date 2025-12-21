@@ -45,11 +45,11 @@ export default function Sidebar() {
 
 function NavItem({ icon, href, active = false }: { icon: React.ReactNode; href: string; active?: boolean }) {
     return (
-        <Link href={href} className="relative z-10 bg-black/50 backdrop-blur-sm rounded-2xl">
+        <Link href={href} className="relative z-10 bg-black/50 backdrop-blur-sm rounded-2xl group">
             <div
                 className={`p-3 rounded-2xl transition-all duration-300 flex items-center justify-center border ${active
-                    ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)] border-white scale-110"
-                    : "text-zinc-500 border-transparent hover:text-white hover:bg-white/10 hover:border-white/10"
+                    ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.6)] border-white scale-110"
+                    : "text-zinc-500 border-transparent group-hover:text-cyan-400 group-hover:bg-white/5 group-hover:border-cyan-500/30 group-hover:shadow-[0_0_15px_rgba(34,211,238,0.3)] group-hover:scale-110"
                     }`}
             >
                 {icon}
