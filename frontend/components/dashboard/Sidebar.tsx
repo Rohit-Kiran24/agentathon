@@ -37,7 +37,7 @@ export default function Sidebar() {
 
             {/* Nav Items */}
             <nav className="flex flex-col gap-8 flex-1 w-full px-4">
-                <NavItem icon={<Home size={24} />} href="/" active={pathname === "/"} />
+                <NavItem icon={<Home size={24} />} href="/chat" active={pathname === "/chat"} />
                 <NavItem icon={<Database size={24} />} href="/upload" active={pathname === "/upload"} />
                 <NavItem icon={<BarChart2 size={24} />} href="/analytics" active={pathname === "/analytics"} />
                 <NavItem icon={<History size={24} />} href="#" />

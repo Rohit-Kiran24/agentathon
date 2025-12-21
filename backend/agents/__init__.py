@@ -3,4 +3,6 @@ from .sales import SalesAgent
 from .marketing import MarketingAgent
 from .general import GeneralAgent
 
-__all__ = ['InventoryAgent', 'SalesAgent', 'MarketingAgent', 'GeneralAgent']
+from .prediction import PredictionAgent
+
+__all__ = ['InventoryAgent', 'SalesAgent', 'MarketingAgent', 'GeneralAgent', 'PredictionAgent']

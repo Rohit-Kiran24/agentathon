@@ -11,7 +11,7 @@ class SalesAgent(BaseAgent):
     def __init__(self):
         super().__init__(agent_name="Sales Agent")
     
-    def get_context(self) -> str:
+    def get_context(self, context_files=None) -> str:
         """Load and format session sales data."""
         # Dynamic Session Data
         df_sales = self.load_any_csv()

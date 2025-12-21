@@ -2,11 +2,11 @@ import os
 import math
 import pandas as pd
 from datetime import datetime, timedelta
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from agents import InventoryAgent, SalesAgent, MarketingAgent, GeneralAgent
+from agents import InventoryAgent, SalesAgent, MarketingAgent, GeneralAgent, PredictionAgent
 
 # 1. Configuration
 load_dotenv()
@@ -19,6 +19,7 @@ inventory_agent = InventoryAgent()
 sales_agent = SalesAgent()
 marketing_agent = MarketingAgent()
 general_agent = GeneralAgent()
+prediction_agent = PredictionAgent()
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,6 +32,47 @@ app.add_middleware(
 class QueryRequest(BaseModel):
     query: str
     history: list[dict] = []
+
+class ScenarioRequest(BaseModel):
+    marketing_change: float
+    opex_change: float
+    price_change: float
+
+async def get_current_user_files(authorization: str = Header(None)):
+    """
+    Dependency to verify Firebase Token and fetch user context.
+    Returns a dictionary of file paths { "inventory.csv": "url", "sales.csv": "url" }
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        # For development/demo, we might allow unauthenticated access to default data
+        print("⚠️ No Auth Token provided. Using default local data.")
+        return None
+
+    token = authorization.split(" ")[1]
+    try:
+        decoded_token = firebase_admin.auth.verify_id_token(token)
+        uid = decoded_token['uid']
+        
+        # Fetch datasets subcollection
+        inv_doc = db.collection('users').document(uid).collection('datasets').document('inventory').get()
+        sales_doc = db.collection('users').document(uid).collection('datasets').document('sales').get()
+        
+        context_files = {}
+        if inv_doc.exists:
+            content = inv_doc.to_dict().get('csv_content')
+            if content: context_files['inventory.csv'] = content
+
+        if sales_doc.exists:
+            content = sales_doc.to_dict().get('csv_content')
+            if content: context_files['sales.csv'] = content
+        
+        return context_files
+            
+    except Exception as e:
+        print(f"❌ Auth Verification Failed: {e}")
+        # raise HTTPException(status_code=401, detail="Invalid Authentication")
+    
+    return None
 
 def route_to_agent(query: str, history: list[dict] = []):
     """
@@ -73,6 +115,21 @@ def route_to_agent(query: str, history: list[dict] = []):
         # If no keywords match, check history for context or default to General
         # For now, default to General Agent which can enforce guardrails
         return general_agent
+
+@app.post("/api/predict")
+async def predict_scenario(request: ScenarioRequest, context_files: dict = Depends(get_current_user_files)):
+    """
+    Analyze a What-If scenario using the PredictionAgent.
+    """
+    try:
+        scenario = {
+            "marketing_change": request.marketing_change,
+            "opex_change": request.opex_change,
+            "price_change": request.price_change
+        }
+        return prediction_agent.analyze_scenario(scenario, context_files)
+    except Exception as e:
+        return {"response": f"Error analyzing scenario: {str(e)}", "agent": "Prediction Agent"}
 
 @app.post("/api/analyze")
 def analyze_query(request: QueryRequest):
@@ -172,6 +229,37 @@ async def upload_files(files: list[UploadFile] = File(...)):
 
     except Exception as e:
         return {"response": f"Upload Failed: {str(e)}", "agent": "System"}
+
+@app.get("/api/events")
+async def get_events():
+    """
+    Returns a list of scheduled events for the GlassCalendar.
+    Currently returns mock data, but could be connected to an agent or database later.
+    """
+    today = datetime.now()
+    tomorrow = today + timedelta(days=1)
+    
+    events = [
+        {
+            "id": "1",
+            "title": "Inventory Audit",
+            "start": today.replace(hour=10, minute=0, second=0).isoformat(),
+            "type": "operation"
+        },
+        {
+            "id": "2",
+            "title": "Supplier Call",
+            "start": today.replace(hour=14, minute=30, second=0).isoformat(),
+            "type": "meeting"
+        },
+        {
+            "id": "3",
+            "title": "Restock Delivery",
+            "start": tomorrow.replace(hour=9, minute=0, second=0).isoformat(),
+            "type": "logistics"
+        }
+    ]
+    return events
 
 @app.get("/api/context")
 def get_context():

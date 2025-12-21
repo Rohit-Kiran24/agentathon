@@ -11,7 +11,7 @@ class InventoryAgent(BaseAgent):
     def __init__(self):
         super().__init__(agent_name="Inventory Agent")
     
-    def get_context(self) -> str:
+    def get_context(self, context_files=None) -> str:
         """Load and format session inventory data."""
         # Use whatever file was uploaded for this session
         df_inventory = self.load_any_csv()

@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Bot, User, Rocket, CheckCircle, Sparkles, Download, CalendarCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { Send, Mic, Bot, User, Download, CalendarCheck } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -10,99 +10,57 @@ import ExportButton from './ExportButton';
 import AgentStatusStrip from './AgentStatusStrip';
 import { generatePdf } from '../../utils/generatePdf';
 
-interface Action {
-    label: string;
-    type: string;
-}
-
 interface Message {
     id: number;
     sender: 'user' | 'agent';
     text: string;
     isThinking: boolean;
     chartData?: any;
-    actions?: Action[];
-    suggestions?: string[];
 }
 
 export default function ChatInterface() {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [activeAgentName, setActiveAgentName] = useState<string | null>(null);
-
-    // Toast State
-    const [toast, setToast] = useState<{ show: boolean, msg: string }>({ show: false, msg: '' });
-
     const [messages, setMessages] = useState<Message[]>([
         {
             id: 1,
             sender: 'agent',
-            text: "Hello! I'm your BizNexus Business Consultant. I'm here to help you analyze your data, provide strategic insights, and answer your questions.\n\nHow can I assist you today? You can ask me to forecast trends for next month, analyze specific products, or give a general overview.",
+            text: 'System Online. BizNexus Executive Architecture loaded. Ready for business intelligence tasks.',
             isThinking: false,
             chartData: null
         }
     ]);
-
-    // Helper: Parse message for charts, actions, AND suggestions
+    // --- LOGIC: Send Msg ---
     const parseMessage = (text: string) => {
-        let cleanText = text;
-        let chartData = null;
-        let actions = null;
-        let suggestions = null;
+        const simpleRegex = /```json\s*(?:chart)?\n([\s\S]*?)\n```/i;
+        const match = text.match(simpleRegex);
 
-        // 1. Suggestions Regex (Specific: ```json suggestions ... ```)
-        const suggestionRegex = /```json suggestions\s*([\s\S]*?)\s*```/;
-        const suggestionMatch = cleanText.match(suggestionRegex);
-        if (suggestionMatch) {
+        if (match) {
             try {
-                const parsed = JSON.parse(suggestionMatch[1]);
-                if (Array.isArray(parsed)) {
-                    suggestions = parsed;
-                    cleanText = cleanText.replace(suggestionRegex, '').trim();
-                } else if (parsed.suggestions && Array.isArray(parsed.suggestions)) {
-                    suggestions = parsed.suggestions;
-                    cleanText = cleanText.replace(suggestionRegex, '').trim();
+                const jsonStr = match[1].trim();
+                if (jsonStr.includes('"data"') && jsonStr.includes('"type"')) {
+                    const chartData = JSON.parse(jsonStr);
+                    const cleanText = text.replace(match[0], '').trim();
+                    return { cleanText, chartData };
                 }
-            } catch (e) { console.error("Failed to parse suggestions", e); }
+            } catch (e) {
+                console.error(e);
+            }
         }
-
-        // 2. Actions Regex (Specific: ```json actions ... ```)
-        const actionRegex = /```json actions\s*([\s\S]*?)\s*```/;
-        const actionMatch = cleanText.match(actionRegex);
-        if (actionMatch) {
-            try {
-                const parsed = JSON.parse(actionMatch[1]);
-                if (Array.isArray(parsed)) {
-                    actions = parsed;
-                    cleanText = cleanText.replace(actionRegex, '').trim();
-                }
-            } catch (e) { console.error("Failed to parse actions", e); }
-        }
-
-        // 3. Chart Regex (Generic: ```json ... ``` or ```json chart ... ```)
-        const chartRegex = /```json(?: chart)?\s*([\s\S]*?)\s*```/;
-        const chartMatch = cleanText.match(chartRegex);
-        if (chartMatch) {
-            try {
-                const parsed = JSON.parse(chartMatch[1]);
-                if (parsed.type && parsed.data) {
-                    chartData = parsed;
-                    cleanText = cleanText.replace(chartRegex, '').trim();
-                }
-            } catch (e) { console.error("Failed to parse chart", e); }
-        }
-
-        return { cleanText, chartData, actions, suggestions };
+        return { cleanText: text, chartData: null };
     };
 
-    const handleSend = async (overrideText?: string) => {
-        const textToSend = overrideText || input;
+    const handleSend = async (textOrEvent?: string | React.SyntheticEvent) => {
+        const textToSend = typeof textOrEvent === 'string' ? textOrEvent : input;
+
         if (!textToSend.trim()) return;
 
         const userMsg: Message = { id: Date.now(), sender: 'user', text: textToSend, isThinking: false };
         setMessages(prev => [...prev, userMsg]);
 
-        if (!overrideText) setInput('');
+        const query = textToSend;
+        setInput('');
         setLoading(true);
         setActiveAgentName('Coordinator Agent'); // Default "Thinking" state
 
@@ -116,18 +74,17 @@ export default function ChatInterface() {
             const res = await fetch('http://localhost:8000/api/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    query: textToSend,
-                    history: historyPayload
-                }),
+                body: JSON.stringify({ query: query, history: historyPayload }),
             });
 
             const data = await res.json();
-            const { cleanText, chartData, actions, suggestions } = parseMessage(data.response);
+            const { cleanText, chartData } = parseMessage(data.response);
 
             // LIGHT UP THE AGENT
             if (data.agent) {
                 setActiveAgentName(data.agent);
+                // Optional: Reset to null after 5 seconds? Or keep lit until next?
+                // Let's keep it lit.
             }
 
             setMessages(prev => {
@@ -137,39 +94,20 @@ export default function ChatInterface() {
                     sender: 'agent',
                     text: cleanText,
                     chartData: chartData,
-                    actions: actions,
-                    suggestions: suggestions,
                     isThinking: false
                 }];
             });
 
         } catch (error) {
-            console.error(error);
             setMessages(prev => prev.filter(msg => !msg.isThinking));
-            alert("Failed to connect");
+            alert("Connection Error");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleActionClick = (actions: Action[]) => {
-        const actionNames = actions.map(a => a.label).join(", ");
-        setToast({ show: true, msg: `Executing: ${actionNames}...` });
-        setTimeout(() => setToast({ show: false, msg: '' }), 3000);
-    };
-
     return (
         <div className="flex flex-col h-full w-full max-w-5xl mx-auto relative px-4">
-
-            {/* TOAST */}
-            {toast.show && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className="bg-emerald-500 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 font-medium">
-                        <CheckCircle size={20} />
-                        {toast.msg}
-                    </div>
-                </div>
-            )}
 
             {/* AGENT STATUS VISUALIZATION */}
             <div className="pt-2">
@@ -269,41 +207,6 @@ export default function ChatInterface() {
                                         ) : (
                                             <p className="whitespace-pre-wrap font-sans">{msg.text}</p>
                                         )}
-
-                                        {/* ACTIONS */}
-                                        {msg.actions && msg.actions.length > 0 && (
-                                            <div className="mt-6 pt-4 border-t border-white/10">
-                                                <button
-                                                    onClick={() => handleActionClick(msg.actions!)}
-                                                    className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-emerald-900/20 transition-all hover:scale-105 active:scale-95 w-full justify-center group"
-                                                >
-                                                    <Rocket size={18} className="group-hover:animate-bounce" />
-                                                    Do It! (Execute {msg.actions.length} Actions)
-                                                </button>
-                                                <p className="text-center text-xs text-zinc-500 mt-2">
-                                                    Automatically executes: {msg.actions.map(a => a.label).join(", ")}
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        {/* SUGGESTIONS */}
-                                        {msg.suggestions && msg.suggestions.length > 0 && (
-                                            <div className="mt-6 pt-4 border-t border-white/10 flex flex-wrap gap-2">
-                                                <div className="w-full flex items-center gap-2 text-xs font-medium text-zinc-500 mb-1">
-                                                    <Sparkles size={14} className="text-purple-400" />
-                                                    SUGGESTED NEXT STEPS
-                                                </div>
-                                                {msg.suggestions.map((sug, idx) => (
-                                                    <button
-                                                        key={idx}
-                                                        onClick={() => handleSend(sug)}
-                                                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm rounded-full transition-colors border border-white/5 hover:border-white/20 text-left"
-                                                    >
-                                                        {sug}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
                                     </div>
                                 )}
                             </div>
@@ -354,7 +257,7 @@ export default function ChatInterface() {
                                 <Mic size={20} />
                             </button>
                             <button
-                                onClick={() => handleSend()}
+                                onClick={handleSend}
                                 disabled={loading || !input.trim()}
                                 className="p-3 bg-gradient-to-r from-brand-secondary to-brand-accent text-black rounded-full hover:shadow-[0_0_20px_rgba(0,242,254,0.4)] transition-all disabled:opacity-50 disabled:shadow-none transform active:scale-95"
                             >
@@ -363,12 +266,11 @@ export default function ChatInterface() {
                         </div>
                     </div>
                 </div>
-                <p className="text-center text-zinc-700 text-xs absolute -bottom-6 w-full">AI can make mistakes. Verify critical financial data.</p>
             </div>
 
             {/* Disclaimer */}
             <div className="absolute bottom-3 left-0 right-0 text-center">
-                {/* Already included above roughly */}
+                <p className="text-[10px] text-zinc-600 font-medium tracking-wider uppercase opacity-60">BizNexus AI v2.0 ΓÇó Data Confidential</p>
             </div>
         </div>
     );

@@ -8,7 +8,7 @@ class GeneralAgent(BaseAgent):
     def __init__(self):
         super().__init__(agent_name="General Agent")
     
-    def get_context(self) -> str:
+    def get_context(self, context_files=None) -> str:
         """General agent doesn't need specific CSV data, but we can provide a summary of capabilities."""
         return """
         CAPABILITIES:
