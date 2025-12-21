@@ -8,8 +8,37 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from agents import InventoryAgent, SalesAgent, MarketingAgent, GeneralAgent, PredictionAgent
 
+import json
+import firebase_admin
+from firebase_admin import credentials, firestore, auth
+
 # 1. Configuration
 load_dotenv()
+
+# --- FIREBASE INITIALIZATION ---
+# Supports both credentials.json (Local) and FIREBASE_CREDENTIALS env var (Render/Production)
+cred = None
+if os.getenv("FIREBASE_CREDENTIALS"):
+    # Production: Read JSON from Environment Variable
+    print("🔐 Using FIREBASE_CREDENTIALS from Environment")
+    creds_dict = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
+    cred = credentials.Certificate(creds_dict)
+elif os.path.exists("credentials.json"):
+    # Local: Read from file
+    print("📂 Using credentials.json from file")
+    cred = credentials.Certificate("credentials.json")
+else:
+    print("⚠️ No Firebase Credentials found! Auth/DB will fail.")
+
+# Initialize Firebase App uniquely to avoid duplications
+try:
+    firebase_admin.get_app()
+except ValueError:
+    if cred:
+        firebase_admin.initialize_app(cred)
+
+# Initialize Firestore DB
+db = firestore.client() if cred else None
 
 app = FastAPI()
 
@@ -23,7 +52,8 @@ prediction_agent = PredictionAgent()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    # Allow Localhost + Production Vercel App (Wildcard for simplicity in this demo, strict in real prod)
+    allow_origins=["http://localhost:3000", "https://biznexus-agent.vercel.app", "https://biznexus.vercel.app"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
