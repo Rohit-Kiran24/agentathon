@@ -21,8 +21,16 @@ cred = None
 if os.getenv("FIREBASE_CREDENTIALS"):
     # Production: Read JSON from Environment Variable
     print("🔐 Using FIREBASE_CREDENTIALS from Environment")
-    creds_dict = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
-    cred = credentials.Certificate(creds_dict)
+    try:
+        creds_dict = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
+        cred = credentials.Certificate(creds_dict)
+    except json.JSONDecodeError as e:
+        print(f"❌ Failed to parse FIREBASE_CREDENTIALS JSON: {e}")
+        print(f"   Value received (first 50 chars): {os.getenv('FIREBASE_CREDENTIALS')[:50]}...")
+        cred = None
+    except Exception as e:
+        print(f"❌ Error loading Firebase Creds: {e}")
+        cred = None
 elif os.path.exists("credentials.json"):
     # Local: Read from file
     print("📂 Using credentials.json from file")
