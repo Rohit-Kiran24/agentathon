@@ -23,7 +23,7 @@ export default function Home() {
             </div>
 
             {/* 3. Main Cockpit Area */}
-            <section className="flex-1 pl-28 pr-8 py-8 flex flex-col h-screen overflow-hidden relative z-10">
+            <section className="flex-1 pl-24 pr-8 py-8 flex flex-col h-screen overflow-hidden relative z-10">
 
                 {/* Animated Header */}
                 <motion.header

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import React, { useEffect, useState } from 'react';
-import { Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 
 interface Event {
     id: string;
@@ -19,10 +19,23 @@ export default function GlassCalendar() {
             const res = await fetch('http://localhost:8000/api/events');
             if (res.ok) {
                 const data = await res.json();
+                console.log("📅 Fetched Events:", data); // DEBUG
                 setEvents(data);
             }
         } catch (e) {
             console.error("Calendar fetch error", e);
+        }
+    };
+
+    const handleDelete = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent card click
+        if (!confirm("Delete this meeting?")) return;
+
+        try {
+            await fetch(`http://localhost:8000/api/events/${id}`, { method: 'DELETE' });
+            setEvents(prev => prev.filter(ev => ev.id !== id));
+        } catch (err) {
+            console.error("Failed to delete event", err);
         }
     };
 
@@ -129,9 +142,16 @@ export default function GlassCalendar() {
                                 <div className="overflow-hidden">
                                     <div className="text-xs text-white truncate font-medium">{e.title}</div>
                                     <div className="text-[10px] text-zinc-500 group-hover/item:text-zinc-300">
-                                        {new Date(e.start).toLocaleDateString()} ΓÇó {new Date(e.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {new Date(e.start).toLocaleDateString()} • {new Date(e.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </div>
                                 </div>
+                                <button
+                                    onClick={(event) => handleDelete(e.id, event)}
+                                    className="opacity-0 group-hover/item:opacity-100 p-1.5 text-zinc-500 hover:text-red-400 hover:bg-white/10 rounded transition-all ml-auto"
+                                    title="Delete Meeting"
+                                >
+                                    <Trash2 size={12} />
+                                </button>
                             </div>
                         ))}
                     {events.filter(e => new Date(e.start) >= new Date()).length === 0 && (

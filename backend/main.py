@@ -95,13 +95,33 @@ def route_to_agent(query: str, history: list[dict] = []):
     
     # General/Greeting keywords
     general_keywords = ['hi', 'hello', 'hey', 'help', 'who are you', 'what can you do', 'greetings']
+
+    # Scheduling keywords
+    scheduling_keywords = ['schedule', 'meeting', 'calendar', 'appointment', 'remind', 'organize']
+    
+    # Prediction keywords
+    prediction_keywords = ['predict', 'forecast', 'future', 'prediction', 'what will', 'projection']
     
     # Count keyword matches
     inventory_score = sum(1 for kw in inventory_keywords if kw in query_lower)
     sales_score = sum(1 for kw in sales_keywords if kw in query_lower)
     marketing_score = sum(1 for kw in marketing_keywords if kw in query_lower)
     general_score = sum(1 for kw in general_keywords if kw in query_lower)
+    scheduling_score = sum(1 for kw in scheduling_keywords if kw in query_lower)
+    prediction_score = sum(1 for kw in prediction_keywords if kw in query_lower)
     
+    # Priority Routing
+    if scheduling_score > 0:
+        return general_agent
+        
+    if prediction_score > 0 and (sales_score > 0 or inventory_score > 0):
+         # If prediction is specifically about sales or inventory, we might want to route to PredictionAgent
+         # But the current PredictionAgent is setup mainly for "What-If" scenarios. 
+         # Let's route purely predictive queries to SalesAgent (for sales forecast) for now as it has better data context,
+         # OR route to PredictionAgent if we enhance it.
+         # For now, let's keep it safe: SalesAgent handles "sales forecast".
+         pass
+
     # Route to the agent with highest score
     if general_score > 0 and general_score > max(inventory_score, sales_score, marketing_score):
         return general_agent
@@ -113,7 +133,6 @@ def route_to_agent(query: str, history: list[dict] = []):
         return inventory_agent
     else:
         # If no keywords match, check history for context or default to General
-        # For now, default to General Agent which can enforce guardrails
         return general_agent
 
 @app.post("/api/predict")
@@ -131,11 +150,35 @@ async def predict_scenario(request: ScenarioRequest, context_files: dict = Depen
     except Exception as e:
         return {"response": f"Error analyzing scenario: {str(e)}", "agent": "Prediction Agent"}
 
+# --- Calendar Module Integration ---
+from calendar_module import CalendarManager
+
+calendar_manager = CalendarManager()
+
+@app.get("/api/events")
+async def get_events():
+    """
+    Returns a list of scheduled events.
+    """
+    return calendar_manager.get_events()
+
+@app.delete("/api/events/{event_id}")
+async def delete_event(event_id: str):
+    """
+    Deletes an event by ID.
+    """
+    calendar_manager.delete_event(event_id)
+    return {"status": "success", "message": "Event deleted"}
+
+import re
+import json
+
 @app.post("/api/analyze")
 def analyze_query(request: QueryRequest):
     """
     Main endpoint for query analysis.
     Routes the query to the appropriate specialized agent.
+    INTERCEPTS 'schedule' JSON blocks to update MOCK_EVENTS.
     """
     try:
         # Route to the appropriate agent
@@ -144,122 +187,28 @@ def analyze_query(request: QueryRequest):
         # Let the agent analyze the query
         result = agent.analyze(request.query, request.history)
         
+        # --- Intercept Scheduling Actions ---
+        # Regex to find ```json schedule ... ```
+        schedule_regex = r"```json schedule\s*([\s\S]*?)\s*```"
+        match = re.search(schedule_regex, result["response"])
+        if match:
+            try:
+                event_data = json.loads(match.group(1))
+                # Add ID and type defaults
+                if "type" not in event_data:
+                    event_data["type"] = "meeting"
+                
+                # Add to Persistent Calendar
+                calendar_manager.add_event(event_data)
+                print(f"✅ Scheduled New Event: {event_data}")
+                
+            except Exception as e:
+                print(f"❌ Failed to parse schedule block: {e}")
+        
         return result
 
     except Exception as e:
         return {"response": f"Error: {str(e)}", "agent": "System"}
-
-# --- Data Upload Endpoint ---
-import pandas as pd
-import io
-import time
-from fastapi import UploadFile, File, HTTPException
-from database import get_engine
-
-import shutil
-
-@app.post("/api/upload")
-async def upload_files(files: list[UploadFile] = File(...)):
-    """
-    Uploads multiple files, CLEARS old session data, saves new files to data/, and logs to SQLite.
-    """
-    try:
-        # 1. Clear Data Directory (Session Replacement)
-        # Use safe file deletion instead of rmtree to avoid Windows Access Denied errors
-        data_dir = os.path.join(os.getcwd(), 'data')
-        if not os.path.exists(data_dir):
-            os.makedirs(data_dir)
-        else:
-            for filename in os.listdir(data_dir):
-                file_path = os.path.join(data_dir, filename)
-                try:
-                    if os.path.isfile(file_path) or os.path.islink(file_path):
-                        os.unlink(file_path)
-                    elif os.path.isdir(file_path):
-                        shutil.rmtree(file_path)
-                except Exception as e:
-                    print(f"Failed to delete {file_path}. Reason: {e}")
-
-        engine = get_engine()
-        results = []
-        suggestions_agg = []
-        
-        for file in files:
-            # 2. Read file content
-            contents = await file.read()
-            filename = file.filename.lower()
-            
-            # 3. Save to data/ (for Agents that read files)
-            file_path = os.path.join(data_dir, filename)
-            with open(file_path, "wb") as f:
-                f.write(contents)
-            
-            # 4. Load into Pandas
-            if filename.endswith(".csv"):
-                df = pd.read_csv(io.BytesIO(contents))
-            elif filename.endswith(".xlsx") or filename.endswith(".xls"):
-                df = pd.read_excel(io.BytesIO(contents))
-            elif filename.endswith(".json"):
-                df = pd.read_json(io.BytesIO(contents))
-            else:
-                results.append(f"❌ {filename}: Unsupported format")
-                continue
-                
-            # 5. Sanitize and Save to Database (for SQL Agent)
-            clean_name = "".join(c for c in filename.split('.')[0] if c.isalnum())
-            table_name = f"upload_{int(time.time())}_{clean_name}"
-            
-            df.to_sql(table_name, engine, if_exists='replace', index=False)
-            
-            # 6. Generate Stats
-            row_count = len(df)
-            columns = ", ".join(df.columns[:3]) # First 3 cols
-            results.append(f"✅ `{table_name}` ({row_count} rows, cols: {columns}...)")
-            
-            suggestions_agg.append(f"Analyze {clean_name} data")
-
-        # Craft response
-        response_text = "**Session Context Updated:**\n" + "\n".join(results)
-        
-        return {
-            "response": response_text,
-            "agent": "System",
-            "suggestions": suggestions_agg[:3] + ["Compare uploaded datasets"]
-        }
-
-    except Exception as e:
-        return {"response": f"Upload Failed: {str(e)}", "agent": "System"}
-
-@app.get("/api/events")
-async def get_events():
-    """
-    Returns a list of scheduled events for the GlassCalendar.
-    Currently returns mock data, but could be connected to an agent or database later.
-    """
-    today = datetime.now()
-    tomorrow = today + timedelta(days=1)
-    
-    events = [
-        {
-            "id": "1",
-            "title": "Inventory Audit",
-            "start": today.replace(hour=10, minute=0, second=0).isoformat(),
-            "type": "operation"
-        },
-        {
-            "id": "2",
-            "title": "Supplier Call",
-            "start": today.replace(hour=14, minute=30, second=0).isoformat(),
-            "type": "meeting"
-        },
-        {
-            "id": "3",
-            "title": "Restock Delivery",
-            "start": tomorrow.replace(hour=9, minute=0, second=0).isoformat(),
-            "type": "logistics"
-        }
-    ]
-    return events
 
 @app.get("/api/context")
 def get_context():
@@ -916,4 +865,4 @@ def get_dashboard_stats(days: int = 365):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

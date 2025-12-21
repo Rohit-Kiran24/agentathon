@@ -31,7 +31,8 @@ export default function AnalyticsPage() {
     // Common Wrapper to ensure Sidebar is always present
     const PageLayout = ({ children }: { children: React.ReactNode }) => (
         <main className="flex min-h-screen bg-black text-zinc-100 selection:bg-cyan-500/30 font-sans">
-            <section className="flex-1 px-8 py-8 h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+            <Sidebar />
+            <section className="flex-1 pl-24 pr-8 py-8 h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
                 {children}
             </section>
         </main>

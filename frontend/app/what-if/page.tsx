@@ -79,6 +79,8 @@ interface TrendData {
     projectedProfit?: number;
 }
 
+import Sidebar from "@/components/dashboard/Sidebar";
+
 export default function WhatIfPage() {
     const { user } = useAuth();
     const [mounted, setMounted] = useState(false);
@@ -220,161 +222,160 @@ export default function WhatIfPage() {
     if (!mounted) return null;
 
     return (
-        <div className="min-h-screen bg-black text-white p-6 md:p-12 relative overflow-hidden">
-            {/* Background Gradients */}
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] -z-10" />
-            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] -z-10" />
+        <main className="flex min-h-screen bg-black text-white selection:bg-white/30">
+            <Sidebar />
+            <section className="flex-1 pl-24 pr-8 py-8 h-screen overflow-y-auto w-full relative">
+                {/* Background Gradients */}
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] -z-10" />
+                <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] -z-10" />
 
-            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-                {/* Header & Controls (Left Col) */}
-                <div className="lg:col-span-4 flex flex-col gap-6">
-                    <div>
-                        <Link href="/hub" className="inline-flex items-center gap-2 text-zinc-400 hover:text-white transition-colors mb-6 group">
-                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                            Back to Hub
-                        </Link>
-                        <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400 mb-2">
-                            Scenario Simulator
-                        </h1>
-                        <p className="text-zinc-500">
-                            Adjust variables to forecast profitability.
-                        </p>
+                    {/* Header & Controls (Left Col) */}
+                    <div className="lg:col-span-4 flex flex-col gap-6">
+                        <div>
+                            <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400 mb-2">
+                                Scenario Simulator
+                            </h1>
+                            <p className="text-zinc-500">
+                                Adjust variables to forecast profitability.
+                            </p>
+                        </div>
+
+                        <div className="bg-zinc-900/40 p-6 rounded-2xl border border-white/5 backdrop-blur-xl">
+                            <SliderControl label="Marketing Spend" value={marketingChange} onChange={setMarketingChange} />
+                            <SliderControl label="Operational Costs" value={opexChange} onChange={setOpexChange} />
+                            <SliderControl label="Unit Pricing" value={priceChange} onChange={setPriceChange} min={-20} max={20} />
+
+                            <button
+                                onClick={handleAnalyze}
+                                disabled={loadingAi}
+                                className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium shadow-lg shadow-indigo-900/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {loadingAi ? (
+                                    <span className="animate-pulse">Consulting AI...</span>
+                                ) : (
+                                    <>
+                                        <Sparkles className="w-4 h-4" /> Analyze Scenario
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="bg-zinc-900/40 p-6 rounded-2xl border border-white/5 backdrop-blur-xl">
-                        <SliderControl label="Marketing Spend" value={marketingChange} onChange={setMarketingChange} />
-                        <SliderControl label="Operational Costs" value={opexChange} onChange={setOpexChange} />
-                        <SliderControl label="Unit Pricing" value={priceChange} onChange={setPriceChange} min={-20} max={20} />
+                    {/* Visuals (Right Col) */}
+                    <div className="lg:col-span-8 flex flex-col gap-6">
+                        {/* KPI Summary */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <KPICard title="Proj. Revenue" value={projectedStats.revenue} baseline={baselineStats.revenue} />
+                            <KPICard title="Proj. Profit" value={projectedStats.profit} baseline={baselineStats.profit} />
+                            <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-800 backdrop-blur-sm flex flex-col justify-center items-center text-center">
+                                <span className="text-zinc-500 text-xs uppercase tracking-wider mb-2">Simulated Margin</span>
+                                <span className="text-3xl font-bold text-white">
+                                    {projectedStats.revenue > 0 ? ((projectedStats.profit / projectedStats.revenue) * 100).toFixed(1) : 0}%
+                                </span>
+                            </div>
+                        </div>
 
-                        <button
-                            onClick={handleAnalyze}
-                            disabled={loadingAi}
-                            className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium shadow-lg shadow-indigo-900/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                            {loadingAi ? (
-                                <span className="animate-pulse">Consulting AI...</span>
-                            ) : (
-                                <>
-                                    <Sparkles className="w-4 h-4" /> Analyze Scenario
-                                </>
-                            )}
-                        </button>
+                        {/* Main Chart */}
+                        <div className="bg-zinc-900/40 p-6 rounded-3xl border border-white/5 backdrop-blur-xl flex-1 min-h-[400px]">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="font-semibold text-zinc-300 flex items-center gap-2">
+                                    <TrendingUp className="w-4 h-4 text-indigo-400" />
+                                    Profit Projection Curve
+                                </h3>
+                                <div className="flex gap-4 text-xs">
+                                    <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-zinc-600"></div>Baseline</div>
+                                    <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>Projected</div>
+                                </div>
+                            </div>
+
+                            <div className="h-[350px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={currentProjection}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                                        <XAxis
+                                            dataKey="period"
+                                            stroke="#52525b"
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tick={{ fontSize: 12 }}
+                                            dy={10}
+                                        />
+                                        <YAxis
+                                            stroke="#52525b"
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tick={{ fontSize: 12 }}
+                                            tickFormatter={(val) => `$${val / 1000}k`}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                                            formatter={(val: any, name: any) => [`$${Math.round(Number(val)).toLocaleString()}`, name === 'baselineProfit' ? 'Baseline Profit' : 'Projected Profit']}
+                                        />
+                                        <Line
+                                            type="monotone"
+                                            dataKey="baselineProfit"
+                                            stroke="#52525b"
+                                            strokeWidth={2}
+                                            dot={false}
+                                            strokeDasharray="5 5"
+                                        />
+                                        <Line
+                                            type="monotone"
+                                            dataKey="projectedProfit"
+                                            stroke="#6366f1"
+                                            strokeWidth={3}
+                                            dot={{ r: 4, fill: "#6366f1", strokeWidth: 0 }}
+                                            activeDot={{ r: 6, fill: "#fff" }}
+                                        />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <p className="text-center text-xs text-zinc-600 mt-4">
+                                *Projections serve as estimates based on elasticity models. Actual results may vary.
+                            </p>
+                        </div>
                     </div>
+
                 </div>
 
-                {/* Visuals (Right Col) */}
-                <div className="lg:col-span-8 flex flex-col gap-6">
-                    {/* KPI Summary */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <KPICard title="Proj. Revenue" value={projectedStats.revenue} baseline={baselineStats.revenue} />
-                        <KPICard title="Proj. Profit" value={projectedStats.profit} baseline={baselineStats.profit} />
-                        <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-800 backdrop-blur-sm flex flex-col justify-center items-center text-center">
-                            <span className="text-zinc-500 text-xs uppercase tracking-wider mb-2">Simulated Margin</span>
-                            <span className="text-3xl font-bold text-white">
-                                {projectedStats.revenue > 0 ? ((projectedStats.profit / projectedStats.revenue) * 100).toFixed(1) : 0}%
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Main Chart */}
-                    <div className="bg-zinc-900/40 p-6 rounded-3xl border border-white/5 backdrop-blur-xl flex-1 min-h-[400px]">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-semibold text-zinc-300 flex items-center gap-2">
-                                <TrendingUp className="w-4 h-4 text-indigo-400" />
-                                Profit Projection Curve
-                            </h3>
-                            <div className="flex gap-4 text-xs">
-                                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-zinc-600"></div>Baseline</div>
-                                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>Projected</div>
-                            </div>
-                        </div>
-
-                        <div className="h-[350px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={currentProjection}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                                    <XAxis
-                                        dataKey="period"
-                                        stroke="#52525b"
-                                        tickLine={false}
-                                        axisLine={false}
-                                        tick={{ fontSize: 12 }}
-                                        dy={10}
-                                    />
-                                    <YAxis
-                                        stroke="#52525b"
-                                        tickLine={false}
-                                        axisLine={false}
-                                        tick={{ fontSize: 12 }}
-                                        tickFormatter={(val) => `$${val / 1000}k`}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                                        formatter={(val: any, name: any) => [`$${Math.round(Number(val)).toLocaleString()}`, name === 'baselineProfit' ? 'Baseline Profit' : 'Projected Profit']}
-                                    />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="baselineProfit"
-                                        stroke="#52525b"
-                                        strokeWidth={2}
-                                        dot={false}
-                                        strokeDasharray="5 5"
-                                    />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="projectedProfit"
-                                        stroke="#6366f1"
-                                        strokeWidth={3}
-                                        dot={{ r: 4, fill: "#6366f1", strokeWidth: 0 }}
-                                        activeDot={{ r: 6, fill: "#fff" }}
-                                    />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <p className="text-center text-xs text-zinc-600 mt-4">
-                            *Projections serve as estimates based on elasticity models. Actual results may vary.
-                        </p>
-                    </div>
-                </div>
-
-            </div>
-
-            {/* AI Analysis Result - Full Width Bottom */}
-            {aiAnalysis && (
-                <div className="max-w-7xl mx-auto mt-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 p-8 rounded-3xl border border-white/5 backdrop-blur-xl">
-                        <div className="flex items-center gap-3 mb-6 text-indigo-300">
-                            <div className="p-2 bg-indigo-500/20 rounded-lg">
-                                <Sparkles className="w-5 h-5 text-indigo-400" />
-                            </div>
-                            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-200 to-indigo-100">
-                                AI Strategic Intelligence
-                            </h2>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative">
-                            {/* Vertical separate line for desktop */}
-                            <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-white/10 to-transparent" />
-
-                            {/* Impact Section */}
-                            <div className="prose prose-invert prose-sm max-w-none">
-                                <Markdown>
-                                    {aiAnalysis.split("### 🛠 Recommended Actions")[0]}
-                                </Markdown>
+                {/* AI Analysis Result - Full Width Bottom */}
+                {aiAnalysis && (
+                    <div className="max-w-7xl mx-auto mt-8 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-12">
+                        <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 p-8 rounded-3xl border border-white/5 backdrop-blur-xl">
+                            <div className="flex items-center gap-3 mb-6 text-indigo-300">
+                                <div className="p-2 bg-indigo-500/20 rounded-lg">
+                                    <Sparkles className="w-5 h-5 text-indigo-400" />
+                                </div>
+                                <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-200 to-indigo-100">
+                                    AI Strategic Intelligence
+                                </h2>
                             </div>
 
-                            {/* Strategy Section */}
-                            <div className="prose prose-invert prose-sm max-w-none">
-                                <h3 className="text-xl font-bold mb-4 text-purple-200 mt-0">🛠 Recommended Actions</h3>
-                                <Markdown>
-                                    {aiAnalysis.split("### 🛠 Recommended Actions")[1] || "Generating..."}
-                                </Markdown>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative">
+                                {/* Vertical separate line for desktop */}
+                                <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-white/10 to-transparent" />
+
+                                {/* Impact Section */}
+                                <div className="prose prose-invert prose-sm max-w-none">
+                                    <Markdown>
+                                        {aiAnalysis.split("### 🛠 Recommended Actions")[0]}
+                                    </Markdown>
+                                </div>
+
+                                {/* Strategy Section */}
+                                <div className="prose prose-invert prose-sm max-w-none">
+                                    <h3 className="text-xl font-bold mb-4 text-purple-200 mt-0">🛠 Recommended Actions</h3>
+                                    <Markdown>
+                                        {aiAnalysis.split("### 🛠 Recommended Actions")[1] || "Generating..."}
+                                    </Markdown>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )}
+            </section>
+        </main>
     );
 }

@@ -50,7 +50,19 @@ export default function ChatInterface() {
         let actions = null;
         let suggestions = null;
 
-        // 1. Suggestions Regex (Specific: ```json suggestions ... ```)
+        // 1. Schedule Regex (Specific: ```json schedule ... ```)
+        // CHECK THIS FIRST to prevent generic chart regex from consuming it
+        const scheduleRegex = /```json schedule\s*([\s\S]*?)\s*```/;
+        const scheduleMatch = cleanText.match(scheduleRegex);
+        if (scheduleMatch) {
+            try {
+                // We don't need to do anything with the data here as the backend handles the actual booking
+                // But we act as if we "consumed" it to hide it from the UI
+                cleanText = cleanText.replace(scheduleRegex, '').trim();
+            } catch (e) { console.error("Failed to parse schedule", e); }
+        }
+
+        // 2. Suggestions Regex (Specific: ```json suggestions ... ```)
         const suggestionRegex = /```json suggestions\s*([\s\S]*?)\s*```/;
         const suggestionMatch = cleanText.match(suggestionRegex);
         if (suggestionMatch) {
@@ -66,7 +78,7 @@ export default function ChatInterface() {
             } catch (e) { console.error("Failed to parse suggestions", e); }
         }
 
-        // 2. Actions Regex (Specific: ```json actions ... ```)
+        // 3. Actions Regex (Specific: ```json actions ... ```)
         const actionRegex = /```json actions\s*([\s\S]*?)\s*```/;
         const actionMatch = cleanText.match(actionRegex);
         if (actionMatch) {
@@ -79,7 +91,8 @@ export default function ChatInterface() {
             } catch (e) { console.error("Failed to parse actions", e); }
         }
 
-        // 3. Chart Regex (Generic: ```json ... ``` or ```json chart ... ```)
+        // 4. Chart Regex (Generic: ```json ... ``` or ```json chart ... ```)
+        // CHECK LAST as catch-all
         const chartRegex = /```json(?: chart)?\s*([\s\S]*?)\s*```/;
         const chartMatch = cleanText.match(chartRegex);
         if (chartMatch) {
@@ -92,7 +105,9 @@ export default function ChatInterface() {
             } catch (e) { console.error("Failed to parse chart", e); }
         }
 
-        return { cleanText, chartData, actions, suggestions };
+        return { cleanText, chartData, actions, suggestions, hasSchedule: !!scheduleMatch };
+
+        return { cleanText, chartData, actions, suggestions, hasSchedule: !!scheduleMatch };
     };
 
     const handleSend = async (overrideText?: string) => {
@@ -123,11 +138,16 @@ export default function ChatInterface() {
             });
 
             const data = await res.json();
-            const { cleanText, chartData, actions, suggestions } = parseMessage(data.response);
+            const { cleanText, chartData, actions, suggestions, hasSchedule } = parseMessage(data.response);
 
             // LIGHT UP THE AGENT
             if (data.agent) {
                 setActiveAgentName(data.agent);
+            }
+
+            if (hasSchedule) {
+                setToast({ show: true, msg: "Meeting Scheduled & Added to Calendar" });
+                setTimeout(() => setToast({ show: false, msg: '' }), 4000);
             }
 
             setMessages(prev => {
