@@ -1,0 +1,13 @@
+item_id,item_name,category,current_stock,reorder_level,cost_price,selling_price,supplier_id,last_restocked
+101,Smart Watch X1,Electronics,127,27,140,250,S01,2025-12-19
+102,Pro Noise-Cancel Headphones,Audio,80,34,95,180,S02,2025-11-23
+103,Ergonomic Laptop Stand,Office,96,26,20,45,S03,2025-11-23
+104,Wireless Optical Mouse,Peripherals,128,38,12,30,S01,2025-11-24
+105,USB-C Multi-Hub,Peripherals,69,36,18,40,S01,2025-12-09
+106,"4K Ultra Monitor 27""",Electronics,120,23,280,400,S02,2025-12-01
+107,RGB Mech Keyboard,Peripherals,118,31,70,120,S01,2025-11-28
+108,Gaming Chair Pro,Furniture,104,38,150,250,S03,2025-12-13
+109,LED Desk Lamp,Office,123,31,25,50,S03,2025-12-06
+110,Portable Bluetooth Speaker,Audio,55,29,45,80,S02,2025-11-20
+111,Webcam 1080p,Electronics,97,24,40,75,S01,2025-12-19
+112,Standing Desk Frame,Furniture,130,37,200,350,S03,2025-11-29
