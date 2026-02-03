@@ -4,6 +4,7 @@ env
 .venv
 venv/
 ENV/
+Downloads/
 
 # Secrets
 credentials.json
