@@ -1,0 +1,29 @@
+# Environment variables
+.env
+env
+.venv
+venv/
+ENV/
+
+# Secrets
+credentials.json
+client_secret.json
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+*.log
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.next/
+dist/
+build/
